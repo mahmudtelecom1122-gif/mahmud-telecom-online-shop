@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>মাহমুদ টেলিকম | Mahmud Telecom — মোবাইল ও ইলেকট্রনিক্স শপ</title>
+<meta name="description" content="মাহমুদ টেলিকম — মোবাইল এক্সেসরিজ, ইলেকট্রনিক্স, ফটোগ্রাফি ও মোবাইল সার্ভিসিং। গামারুয়া দক্ষিণপাড়া।">
+<link rel="icon" href="images/logo.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/shop-final.js"></script></head>
+<body>
+
+<!-- ================= TOP BAR ================= -->
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-item"><span class="ico">📍</span> গামারুয়া দক্ষিণপাড়া, তাকওয়া মসজিদ সংলগ্ন</div>
+    <div class="topbar-right">
+      <a href="tel:+8801846655270" class="topbar-item"><span class="ico">📞</span> 01846-655270</a>
+      <a href="tel:+8801614456312" class="topbar-item"><span class="ico">📞</span> 01614-456312</a>
+    </div>
+  </div>
+</div>
+
+<!-- ================= HEADER ================= -->
+<header class="header">
+  <div class="header-inner">
+    <a href="#home" class="brand">
+      <img src="images/logo.png" alt="Mahmud Telecom Logo" class="brand-logo">
+      <div class="brand-text">
+        <span class="brand-name">মাহমুদ টেলিকম</span>
+        <span class="brand-sub">Mahmud Telecom</span>
+      </div>
+    </a>
+
+    <div class="search-wrap">
+      <input type="text" id="searchInput" class="search-input" placeholder="পণ্য খুঁজুন... যেমনঃ চার্জার, হেডফোন">
+      <button class="search-btn" id="searchBtn" aria-label="খুঁজুন">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M21 20.3l-5.4-5.4a7.6 7.6 0 1 0-1.4 1.4l5.4 5.4zM4.8 10.4a5.6 5.6 0 1 1 11.2 0 5.6 5.6 0 0 1-11.2 0z"/></svg>
+      </button>
+    </div>
+
+    <button class="cart-btn" id="cartBtn" aria-label="কার্ট">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M7 22a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm10 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4zM3 3h2l1.6 8.6a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L20 6H6.2"/></svg>
+      <span class="cart-count" id="cartCount">0</span>
+    </button>
+  </div>
+
+  <!-- pill navigation -->
+  <nav class="pillnav-wrap">
+    <ul class="pillnav" id="pillnav">
+      <li><a href="#home" class="active" data-target="home">হোম</a></li>
+      <li><a href="#products" data-target="products">পণ্য</a></li>
+      <li><a href="#services" data-target="services">সেবা</a></li>
+      <li><a href="#contact" data-target="contact">যোগাযোগ</a></li>
+    </ul>
+  </nav>
+</header>
+
+<!-- ================= HERO ================= -->
+<section class="hero" id="home">
+  <div class="hero-inner">
+    <div class="hero-text">
+      <p class="eyebrow">গামারুয়ার বিশ্বস্ত মোবাইল ও ইলেকট্রনিক্স দোকান</p>
+      <h1>মোবাইলের সব প্রয়োজনে, <span>মাহমুদ টেলিকম</span></h1>
+      <p class="hero-desc">মোবাইল এক্সেসরিজ, চার্জার, হেডফোন, গ্লাস প্রোটেক্টর থেকে শুরু করে ছবি তোলা ও ফটোকপি — সবকিছু এক জায়গায়। প্রোপাইটরঃ মোঃ নুরুল্লাহ।</p>
+      <div class="hero-actions">
+        <a href="#products" class="btn btn-primary">পণ্য দেখুন</a>
+        <a href="https://wa.me/8801846655270" target="_blank" rel="noopener" class="btn btn-whatsapp">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.7 14.2c-.2.7-1.4 1.3-2 1.4-.5.1-1.2.2-3.6-.8-3-1.2-4.9-4.3-5.1-4.5-.1-.2-1.2-1.6-1.2-3s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .5-.1.7.6l.9 2.2c.1.2.1.4 0 .6l-.5.7c-.1.2-.3.4-.1.7.2.3.9 1.5 1.9 2.4 1.3 1.2 2.4 1.5 2.7 1.7.3.2.5.1.7-.1l.9-1c.2-.3.5-.2.8-.1l2 1c.2.1.4.2.5.4.1.2.1 1-.1 1.7z"/></svg>
+          হোয়াটসঅ্যাপে অর্ডার
+        </a>
+      </div>
+    </div>
+
+    <div class="hero-card neu">
+      <p class="hero-card-title">ক্যাটাগরি বেছে নিন</p>
+      <div class="chip-grid" id="categoryChips">
+        <button class="chip chip-red" data-cat="accessories">📱 মোবাইল এক্সেসরিজ</button>
+        <button class="chip chip-blue" data-cat="audio">🎧 হেডফোন ও ব্লুটুথ</button>
+        <button class="chip chip-yellow" data-cat="protect">🛡️ গ্লাস ও কভার</button>
+        <button class="chip chip-green" data-cat="electric">🔌 ইলেকট্রিক পণ্য</button>
+        <button class="chip chip-pink" data-cat="photo">📸 ফটোগ্রাফি সেবা</button>
+        <button class="chip chip-orange" data-cat="all">✨ সব পণ্য</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PRODUCTS ================= -->
+<section class="section" id="products">
+  <div class="section-inner">
+    <div class="section-head">
+      <h2>আমাদের পণ্যসমূহ</h2>
+      <p>মানসম্পন্ন মোবাইল ও ইলেকট্রনিক্স সামগ্রী, সাশ্রয়ী মূল্যে</p>
+    </div>
+
+    <div class="filter-row" id="filterRow">
+      <button class="filter-btn active" data-filter="all">সব</button>
+      <button class="filter-btn" data-filter="accessories">এক্সেসরিজ</button>
+      <button class="filter-btn" data-filter="audio">অডিও</button>
+      <button class="filter-btn" data-filter="protect">গ্লাস ও কভার</button>
+      <button class="filter-btn" data-filter="electric">ইলেকট্রিক</button>
+      <button class="filter-btn" data-filter="photo">ফটোগ্রাফি</button>
+    </div>
+
+    <div class="product-grid" id="productGrid"></div>
+    <p class="empty-msg" id="emptyMsg" hidden>কোনো পণ্য পাওয়া যায়নি। অন্য কিছু খুঁজে দেখুন।</p>
+  </div>
+</section>
+
+<!-- ================= SERVICES ================= -->
+<section class="section section-alt" id="services">
+  <div class="section-inner">
+    <div class="section-head">
+      <h2>আমাদের সেবাসমূহ</h2>
+      <p>এখানে সব ধরনের মোবাইল সার্ভিসিং করা হয়</p>
+    </div>
+    <div class="service-grid">
+      <div class="service-card neu">
+        <div class="service-ico ico-red">🔧</div>
+        <h3>মোবাইল সার্ভিসিং</h3>
+        <p>সব ধরনের মোবাইল মেরামত ও সমস্যার সমাধান দক্ষ হাতে।</p>
+      </div>
+      <div class="service-card neu">
+        <div class="service-ico ico-blue">📷</div>
+        <h3>ছবি তোলা</h3>
+        <p>পাসপোর্ট, স্টুডিও ও বিশেষ মুহূর্তের ছবি তোলার সুব্যবস্থা।</p>
+      </div>
+      <div class="service-card neu">
+        <div class="service-ico ico-yellow">🖌️</div>
+        <h3>ছবি এডিট করা</h3>
+        <p>প্রফেশনাল মানের ছবি এডিটিং ও প্রিন্ট সার্ভিস।</p>
+      </div>
+      <div class="service-card neu">
+        <div class="service-ico ico-green">🖨️</div>
+        <h3>ফটোকপি</h3>
+        <p>দ্রুত ও পরিষ্কার ফটোকপি, প্রিন্ট ও ল্যামিনেশন সেবা।</p>
+      </div>
+    </div>
+
+    <div class="payment-strip neu">
+      <p class="payment-title">পেমেন্ট করুন সহজেই</p>
+      <div class="payment-badges">
+        <span class="pay-badge pay-bkash">বিকাশ</span>
+        <span class="pay-badge pay-nagad">নগদ</span>
+        <span class="pay-badge pay-rocket">রকেট</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CONTACT ================= -->
+<section class="section" id="contact">
+  <div class="section-inner">
+    <div class="section-head">
+      <h2>যোগাযোগ করুন</h2>
+      <p>যেকোনো প্রয়োজনে সরাসরি কল অথবা মেসেজ করুন</p>
+    </div>
+
+    <div class="contact-grid">
+      <div class="contact-card neu">
+        <h3>দোকানের ঠিকানা</h3>
+        <p>গামারুয়া দক্ষিণপাড়া, তাকওয়া মসজিদ সংলগ্ন,<br>আরই চৌমুহনী মাদ্রাসার পূর্বদিকে</p>
+        <h3>প্রোপাইটর</h3>
+        <p>মোঃ নুরুল্লাহ</p>
+        <div class="contact-links">
+          <a href="tel:+8801846655270" class="btn btn-outline">📞 01846-655270</a>
+          <a href="tel:+8801614456312" class="btn btn-outline">📞 01614-456312</a>
+        </div>
+      </div>
+
+      <div class="contact-card neu contact-form-card">
+        <h3>দ্রুত মেসেজ পাঠান</h3>
+        <form id="contactForm" class="contact-form">
+          <input type="text" placeholder="আপনার নাম" required>
+          <input type="tel" placeholder="আপনার মোবাইল নম্বর" required>
+          <textarea rows="3" placeholder="আপনার বার্তা লিখুন..." required></textarea>
+          <button type="submit" class="btn btn-primary full">হোয়াটসঅ্যাপে পাঠান</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="images/logo.png" alt="Mahmud Telecom" class="footer-logo">
+      <p>মাহমুদ টেলিকম — এখানে সব ধরনের মোবাইল সার্ভিসিং করা হয়</p>
+    </div>
+    <div class="footer-links">
+      <a href="#home">হোম</a>
+      <a href="#products">পণ্য</a>
+      <a href="#services">সেবা</a>
+      <a href="#contact">যোগাযোগ</a>
+    </div>
+    <p class="footer-copy">© 2026 Mahmud Telecom. সর্বস্বত্ব সংরক্ষিত।</p>
+  </div>
+</footer>
+
+<!-- ================= CART DRAWER ================= -->
+<div class="overlay" id="overlay"></div>
+<aside class="cart-drawer" id="cartDrawer">
+  <div class="cart-head">
+    <h3>আপনার কার্ট</h3>
+    <button id="closeCart" aria-label="বন্ধ করুন">✕</button>
+  </div>
+  <div class="cart-items" id="cartItems"></div>
+  <div class="cart-footer">
+    <div class="cart-total-row">
+      <span>মোট</span>
+      <span id="cartTotal">৳ 0</span>
+    </div>
+    <a href="#" id="checkoutBtn" target="_blank" rel="noopener" class="btn btn-whatsapp full">
+      হোয়াটসঅ্যাপে অর্ডার করুন
+    </a>
+  </div>
+</aside>
+
+<!-- Floating WhatsApp button -->
+<a href="https://wa.me/8801846655270" target="_blank" rel="noopener" class="fab-whatsapp" aria-label="WhatsApp">
+  <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.7 14.2c-.2.7-1.4 1.3-2 1.4-.5.1-1.2.2-3.6-.8-3-1.2-4.9-4.3-5.1-4.5-.1-.2-1.2-1.6-1.2-3s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .5-.1.7.6l.9 2.2c.1.2.1.4 0 .6l-.5.7c-.1.2-.3.4-.1.7.2.3.9 1.5 1.9 2.4 1.3 1.2 2.4 1.5 2.7 1.7.3.2.5.1.7-.1l.9-1c.2-.3.5-.2.8-.1l2 1c.2.1.4.2.5.4.1.2.1 1-.1 1.7z"/></svg>
+</a>
+
+<script src="js/script.js"></script>
+<div style="text-align:center;padding:18px;font-size:13px"><a href="admin.html" style="color:inherit;text-decoration:none">Admin</a></div><button id="mtCheckoutButton" onclick="MT_OPEN_CHECKOUT()" style="position:fixed;right:18px;bottom:18px;z-index:9998;border:0;border-radius:999px;padding:13px 18px;background:#1769e0;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.18);cursor:pointer">🛒 অর্ডার / Checkout</button></body>
+</html>
