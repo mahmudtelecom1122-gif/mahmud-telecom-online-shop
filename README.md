@@ -1,26 +1,17 @@
-# Mahmud Telecom — Final Online Shop
+# Mahmud Telecom Online Shop
 
-এই version-টি শুধুমাত্র Online Shopping + Delivery business-এর জন্য তৈরি।
+আপনার বর্তমান Mahmud Telecom ওয়েবসাইটকে Online Shopping + Delivery + PostgreSQL backend হিসেবে চালানোর জন্য প্রস্তুত প্যাকেজ।
 
-## Current design
-আপনার দেওয়া website-এর existing `index.html`, CSS, JS ও logo রাখা হয়েছে; customer-facing design পরিবর্তন করার চেষ্টা করা হয়নি।
+Start backend:
+`cd server`
+`npm install`
+`npm start`
 
-## Added
-- Admin dashboard
-- Product add/edit/delete
-- Real product image upload (browser storage)
-- Category, price, old price, stock
-- Online/hidden product control
-- Customer checkout form
-- Name, mobile, full address, area
-- Delivery charge (inside/outside)
-- Cash on Delivery
-- Order number
-- WhatsApp order submission
-- Admin order list
-- Order status: New / Confirmed / Processing / Shipped / Delivered / Cancelled
-- Shop settings
-- A4 print/PDF support for admin order list
+তারপর:
+`http://localhost:3000`
 
-## Important
-এটি একটি static frontend package। Data browser localStorage-এ থাকে। একই browser/device-এ কাজ করবে। Real multi-device online business-এর জন্য server/database backend প্রয়োজন, কারণ localStorage থেকে অন্য ফোন/কম্পিউটারে order বা product sync হবে না।
+Admin:
+`http://localhost:3000/admin-login.html`
+
+Production deployment details:
+`PRODUCTION_DEPLOYMENT.md`

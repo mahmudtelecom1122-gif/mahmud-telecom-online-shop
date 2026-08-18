@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Login | Mahmud Telecom</title>
+<link rel="stylesheet" href="css/shop-admin.css">
+<style>
+.login-wrap{min-height:100vh;display:grid;place-items:center;padding:20px}
+.login-card{width:min(430px,100%);background:#fff;border-radius:20px;padding:30px;box-shadow:0 12px 35px rgba(0,0,0,.12)}
+.login-card img{width:76px;height:76px;border-radius:18px;display:block;margin:0 auto 12px}
+.login-card h1{text-align:center;margin:0 0 6px}.login-card p{text-align:center;color:#667085}
+.login-card label{display:block;margin:16px 0 7px;font-weight:700}
+.login-card input{width:100%;box-sizing:border-box;padding:13px;border:1px solid #d0d5dd;border-radius:10px;font-size:16px}
+.login-card button{width:100%;margin-top:18px}.hint{font-size:12px;margin-top:12px;color:#667085;text-align:center}
+</style>
+</head>
+<body>
+<div class="login-wrap"><div class="login-card">
+<img src="images/logo.png" alt="Mahmud Telecom">
+<h1>অ্যাডমিন লগইন</h1><p>দোকানের পণ্য, অর্ডার ও ডেলিভারি পরিচালনা করুন</p>
+<form id="loginForm">
+<label for="adminKey">Admin Key</label>
+<input id="adminKey" type="password" autocomplete="current-password" placeholder="Admin Key লিখুন" required>
+<button class="btn" type="submit">🔐 লগইন</button>
+</form>
+<div id="msg" class="hint"></div>
+<div style="text-align:center;margin-top:18px"><a href="index.html">← Shop-এ ফিরে যান</a></div>
+</div></div>
+<script src="js/api-config.js"></script><script src="js/shop-final.js"></script>
+<script>
+loginForm.onsubmit=async e=>{
+ e.preventDefault(); msg.textContent="যাচাই করা হচ্ছে...";
+ const key=adminKey.value.trim(); if(!key)return;
+ sessionStorage.setItem("mt_admin_key",key);
+ try{
+   const ok=await MT.requireAdminKey();
+   if(ok) location.href="admin.html";
+   else {sessionStorage.removeItem("mt_admin_key");msg.textContent="Admin Key সঠিক নয়।";}
+ }catch(err){sessionStorage.removeItem("mt_admin_key");msg.textContent="Backend সংযোগ পাওয়া যাচ্ছে না: "+err.message;}
+};
+(async()=>{if(await MT.detectApi()){const key=sessionStorage.getItem("mt_admin_key");if(key){try{await MT.getProducts(true);location.href="admin.html"}catch(e){}}}else{msg.textContent="Backend চালু হলে এখানে Admin Login কাজ করবে।";}})();
+</script>
+</body></html>
