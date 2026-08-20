@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import pg from "pg";
 import crypto from "crypto";
+import fs from "fs";
 import path from "path";
 import {fileURLToPath} from "url";
 
@@ -152,11 +153,27 @@ app.get("/api/orders",admin,async(req,res)=>{
 app.patch("/api/orders/:id/status",admin,async(req,res)=>{
   const allowed=["New","Confirmed","Processing","Shipped","Delivered","Cancelled"];
   if(!allowed.includes(req.body.status))return res.status(400).json({error:"Invalid status"});
+  const c=await pool.connect();
   try{
-    const r=await pool.query("update orders set status=$1,updated_at=now() where id=$2 returning id,status",[req.body.status,req.params.id]);
-    if(!r.rowCount)return res.status(404).json({error:"Order not found"});
+    await c.query("begin");
+    const o=await c.query("select id,status from orders where id=$1 for update",[req.params.id]);
+    if(!o.rowCount){await c.query("rollback");return res.status(404).json({error:"Order not found"});}
+    const old=o.rows[0].status, next=req.body.status;
+    if(old!=="Cancelled" && next==="Cancelled") {
+      const items=await c.query("select product_id,quantity from order_items where order_id=$1",[req.params.id]);
+      for(const i of items.rows) await c.query("update products set stock=stock+$1,updated_at=now() where id=$2",[i.quantity,i.product_id]);
+    } else if(old==="Cancelled" && next!=="Cancelled") {
+      const items=await c.query("select oi.product_id,oi.quantity,p.stock,p.active from order_items oi join products p on p.id=oi.product_id where oi.order_id=$1 for update",[req.params.id]);
+      for(const i of items.rows){
+        if(!i.active || Number(i.stock)<Number(i.quantity)) throw new Error(`Stock unavailable: ${i.product_id}`);
+      }
+      for(const i of items.rows) await c.query("update products set stock=stock-$1,updated_at=now() where id=$2",[i.quantity,i.product_id]);
+    }
+    const r=await c.query("update orders set status=$1,updated_at=now() where id=$2 returning id,status",[next,req.params.id]);
+    await c.query("commit");
     res.json(r.rows[0]);
-  }catch(e){res.status(400).json({error:e.message})}
+  }catch(e){await c.query("rollback");res.status(400).json({error:e.message})}
+  finally{c.release()}
 });
 app.delete("/api/orders/:id",admin,async(req,res)=>{
   const c=await pool.connect();
@@ -176,8 +193,21 @@ app.delete("/api/orders/:id",admin,async(req,res)=>{
 
 const __filename=fileURLToPath(import.meta.url);
 const __dirname=path.dirname(__filename);
+
+async function initDb(){
+  if(!DATABASE_URL) return;
+  const schemaPath=path.join(__dirname, "schema.sql");
+  try{
+    const schema=fs.readFileSync(schemaPath,"utf8");
+    await pool.query(schema);
+    console.log("Database schema is ready.");
+  }catch(e){
+    console.error("Database schema initialization failed:", e.message);
+  }
+}
+
 app.use(express.static(path.join(__dirname,"..")));
 app.use((req,res,next)=>req.path.startsWith("/api/")?res.status(404).json({error:"API route not found"}):next());
 
 const port=Number(process.env.PORT)||3000;
-app.listen(port,()=>console.log(`Mahmud Telecom API running on port ${port}`));
+initDb().finally(()=>app.listen(port,()=>console.log(`Mahmud Telecom API running on port ${port}`)));

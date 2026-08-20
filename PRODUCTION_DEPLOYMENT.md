@@ -45,7 +45,7 @@ Health test:
 
 ## 3) PostgreSQL
 
-`server/schema.sql` একবার আপনার PostgreSQL database-এ run করুন।
+`server/schema.sql` server চালুর সময় স্বয়ংক্রিয়ভাবে initialize হবে। চাইলে PostgreSQL-এ manually run করলেও হবে।
 
 ## 4) Admin
 
