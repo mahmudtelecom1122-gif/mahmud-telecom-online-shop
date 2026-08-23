@@ -49,23 +49,16 @@ async function cloudPut(state){
   });
 
   const text=await r.text();
-  let j=null;
-
-  try{
-    j=text?JSON.parse(text):null;
-  }catch(e){
-    throw new Error('Cloud PUT invalid response: '+text);
-  }
 
   if(!r.ok){
-    throw new Error('Cloud PUT '+r.status+' '+(j?.error||text));
+    throw new Error('Cloud PUT '+r.status+' '+text);
   }
 
-  if(j?.ok===false){
-    throw new Error(j.error||'Cloud PUT failed');
+  try{
+    return JSON.parse(text);
+  }catch(e){
+    return text;
   }
-
-  return j;
 }
 async function syncPush(){
   if(!apiBase()||!cloudSyncReady||cloudSyncBusy)return;
