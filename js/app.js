@@ -39,9 +39,33 @@ async function cloudGet(){
   return j && j.state ? j.state : null;
 }
 async function cloudPut(state){
-  const base=apiBase(); if(!base) return;
-  const r=await fetch(base+'/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({state})});
-  if(!r.ok) throw new Error('Cloud PUT '+r.status);
+  const base=apiBase();
+  if(!base) return null;
+
+  const r=await fetch(base+'/api/state',{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({state})
+  });
+
+  const text=await r.text();
+  let j=null;
+
+  try{
+    j=text?JSON.parse(text):null;
+  }catch(e){
+    throw new Error('Cloud PUT invalid response: '+text);
+  }
+
+  if(!r.ok){
+    throw new Error('Cloud PUT '+r.status+' '+(j?.error||text));
+  }
+
+  if(j?.ok===false){
+    throw new Error(j.error||'Cloud PUT failed');
+  }
+
+  return j;
 }
 async function syncPush(){
   if(!apiBase()||!cloudSyncReady||cloudSyncBusy)return;
@@ -152,7 +176,7 @@ document.getElementById('newBankBtn').onclick=()=>openModal('মোবাইল 
 document.getElementById('newNumberBtn').onclick=()=>openModal('নম্বর হিসাব',`<div class="form-grid">${field('তারিখ','date',today(),'date','required')}${field('নাম','name','','text','required')}${field('মোবাইল নম্বর','phone','','tel','required')}${field('বিবরণ','note','','text')}${field('মোট টাকা','amount','0','number','required min="0"')}${field('পরিশোধ','paid','0','number','required min="0"')}</div>`,f=>{const amount=+f.get('amount'),paid=+f.get('paid');db.numbers.push({id:uid('N'),date:f.get('date'),name:f.get('name'),phone:f.get('phone'),note:f.get('note'),amount,paid,due:Math.max(0,amount-paid)});save();toast('নম্বর হিসাব সংরক্ষণ হয়েছে')});
 document.addEventListener('click',e=>{const c=e.target.closest('[data-collect]');if(c)collect(c.dataset.collect);const cr=e.target.closest('[data-collect-recharge]');if(cr)collectServiceDue('recharge',cr.dataset.collectRecharge);const cb=e.target.closest('[data-collect-bank]');if(cb)collectServiceDue('banking',cb.dataset.collectBank);const sd=e.target.closest('[data-service-due-collect]');if(sd){const [type,id]=sd.dataset.serviceDueCollect.split(':');collectServiceDue(type,id);}const p=e.target.closest('[data-delete-purchase]');if(p&&confirm('এই ক্রয়টি মুছে ফেলবেন?')){db.purchases=db.purchases.filter(x=>x.id!==p.dataset.deletePurchase);save();toast('মুছে ফেলা হয়েছে')}const r=e.target.closest('[data-delete-recharge]');if(r&&confirm('এই রিচার্জটি মুছে ফেলবেন?')){db.recharge=db.recharge.filter(x=>x.id!==r.dataset.deleteRecharge);save();toast('মুছে ফেলা হয়েছে')}const b=e.target.closest('[data-delete-bank]');if(b&&confirm('এই লেনদেনটি মুছে ফেলবেন?')){db.banking=db.banking.filter(x=>x.id!==b.dataset.deleteBank);save();toast('মুছে ফেলা হয়েছে')}
 const dr=e.target.closest('[data-delete-number]');if(dr&&confirm('এই নম্বর হিসাবটি মুছে ফেলবেন?')){db.numbers=db.numbers.filter(x=>x.id!==dr.dataset.deleteNumber);save();toast('মুছে ফেলা হয়েছে')}
-const er=e.target.closest('[data-edit-recharge]');if(er){const x=db.recharge.find(v=>v.id===er.dataset.editRecharge);if(x)openModal('রিচার্জ সম্পাদনা',`<div class="form-grid">${field('তারিখ','date',x.date,'date','required')}${field('মোবাইল নম্বর','phone',x.phone||'','tel','required')}${selectField('অপারেটর','operator',['GP','Robi','Banglalink','Airtel','Teletalk'],x.operator)}${field('টাকার পরিমাণ','amount',x.amount,'number','required min="1"')}${field('পরিশোধ','paid',x.paid??x.amount,'number','required min="0"')}${selectField('ধরন','type',['সাধারণ','ইন্টারনেট','মিনিট','বান্ডেল'],x.type)}${selectField('মাধ্যম','method',['নগদ','বিকাশ','নগদ MFS','রকেট'],x.method)}</div>`,f=>{Object.assign(x,{date:f.get('date'),phone:f.get('phone'),operator:f.get('operator'),type:f.get('type'),method:f.get('method'),amount:+f.get('amount'),paid:+f.get('paid')});x.due=Math.max(0,x.amount-x.paid);save();toast('রিচার্জ আপডেট হয়েছে')})}
+const er=e.target.closest('[data-edit-recharge]');if(er){const x=db.recharge.find(v=>v.id===er.dataset.editRecharge);if(x)openModal('রিচার্জ সম্পাদনা',`<div class="form-grid">${field('তারিখ','date',x.date,'date','required')}${field('মোবাইল নম্বর','phone',x.phone||'','tel','required')}${selectField('অপারেটর','operator',['GP','Robi','Banglalink','Airtel','Teletalk'],x.operator)}${field('টাকার পরিমাণ','amount',x.amount,'number','required min="1"')}${field('পরিশোধ','paid',x.paid??x.amount,'number','required min="0"')}${selectField('ধরন','type',['সাধারণ','ইন্টারনেট','মিনিট','বান্ডেল'])}${selectField('মাধ্যম','method',['নগদ','বিকাশ','নগদ MFS','রকেট'])}</div>`,f=>{Object.assign(x,{date:f.get('date'),phone:f.get('phone'),operator:f.get('operator'),type:f.get('type'),method:f.get('method'),amount:+f.get('amount'),paid:+f.get('paid')});x.due=Math.max(0,x.amount-x.paid);save();toast('রিচার্জ আপডেট হয়েছে')})}
 const eb=e.target.closest('[data-edit-bank]');if(eb){const x=db.banking.find(v=>v.id===eb.dataset.editBank);if(x)openModal('ব্যাংকিং সম্পাদনা',`<div class="form-grid">${field('তারিখ','date',x.date||today(),'date','required')}${selectField('মাধ্যম','method',['বিকাশ','নগদ','রকেট','উপায়'],x.method)}${selectField('ধরন','type',['Cash In','Cash Out','Send Money','Payment'],x.type)}${field('নম্বর','phone',x.phone||'','tel')}${field('টাকার পরিমাণ','amount',x.amount,'number','required min="0"')}${field('পরিশোধ','paid',x.paid??x.amount,'number','required min="0"')}${field('চার্জ','charge',x.charge||0,'number','min="0"')}</div>`,f=>{Object.assign(x,{date:f.get('date'),method:f.get('method'),type:f.get('type'),phone:f.get('phone'),amount:+f.get('amount'),paid:+f.get('paid'),charge:+f.get('charge')});x.due=Math.max(0,x.amount-x.paid);save();toast('ব্যাংকিং আপডেট হয়েছে')})}
 const en=e.target.closest('[data-edit-number]');if(en){const x=db.numbers.find(v=>v.id===en.dataset.editNumber);if(x)openModal('নম্বর হিসাব সম্পাদনা',`<div class="form-grid">${field('তারিখ','date',x.date,'date','required')}${field('নাম','name',x.name||'','text','required')}${field('মোবাইল নম্বর','phone',x.phone||'','tel','required')}${field('বিবরণ','note',x.note||'','text')}${field('মোট টাকা','amount',x.amount,'number','required min="0"')}${field('পরিশোধ','paid',x.paid||0,'number','required min="0"')}</div>`,f=>{Object.assign(x,{date:f.get('date'),name:f.get('name'),phone:f.get('phone'),note:f.get('note'),amount:+f.get('amount'),paid:+f.get('paid')});x.due=Math.max(0,x.amount-x.paid);save();toast('নম্বর হিসাব আপডেট হয়েছে')})}
 const rr=e.target.closest('[data-recharge-receipt]');if(rr){const x=db.recharge.find(v=>v.id===rr.dataset.rechargeReceipt);if(x)serviceReceipt('মোবাইল রিচার্জ',x,'recharge')}const br=e.target.closest('[data-bank-receipt]');if(br){const x=db.banking.find(v=>v.id===br.dataset.bankReceipt);if(x)serviceReceipt('মোবাইল ব্যাংকিং',x,'banking')}const nr=e.target.closest('[data-number-receipt]');if(nr){const x=db.numbers.find(v=>v.id===nr.dataset.numberReceipt);if(x)numberReceipt(x)}const pr=e.target.closest('[data-edit-product]');if(pr){const x=db.products.find(p=>p.id===pr.dataset.editProduct);openModal('পণ্য সম্পাদনা',`<div class="form-grid">${field('পণ্যের নাম','name',x.name,'text','required')}${field('ক্যাটাগরি','cat',x.cat,'text','required')}${field('ক্রয় মূল্য','buy',x.buy,'number','required')}${field('বিক্রয় মূল্য','sell',x.sell,'number','required')}${field('স্টক','stock',x.stock,'number','required')}${field('কম স্টক সীমা','min',x.min,'number','required')}${field('আইকন','icon',x.icon||'📦')}</div>`,f=>{Object.assign(x,{name:f.get('name'),cat:f.get('cat'),buy:+f.get('buy'),sell:+f.get('sell'),stock:+f.get('stock'),min:+f.get('min'),icon:f.get('icon')});save();toast('পণ্য আপডেট হয়েছে')})}const rec=e.target.closest('[data-receipt]');if(rec){const x=db.sales.find(s=>s.id===rec.dataset.receipt);receipt(x)}});
