@@ -1,231 +1,123 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="bn">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>মাহমুদ টেলিকম | Mahmud Telecom — মোবাইল ও ইলেকট্রনিক্স শপ</title>
-<meta name="description" content="মাহমুদ টেলিকম — মোবাইল এক্সেসরিজ, ইলেকট্রনিক্স, ফটোগ্রাফি ও মোবাইল সার্ভিসিং। গামারুয়া দক্ষিণপাড়া।">
-<link rel="icon" href="images/logo.png" type="image/png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
-<script src="js/api-config.js"></script><script src="js/shop-final.js"></script></head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#17245f">
+<meta name="description" content="Mahmud Telecom Professional ERP — বিক্রয়, ক্রয়, স্টক, কাস্টমার, সাপ্লায়ার, বাকি, রিচার্জ, মোবাইল ব্যাংকিং ও রিপোর্ট।">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/style.css?v=10">
+<title>Mahmud Telecom Professional ERP</title>
+</head>
 <body>
+<div id="toast" class="toast" role="status"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><img src="assets/logo.png" alt="Mahmud Telecom"><div><b>মাহমুদ টেলিকম</b><small>Professional ERP</small></div></div>
+    <div class="shop-status"><span></span><div><b>সিস্টেম চালু</b><small id="clockText">--:--</small></div></div>
+    <nav id="sideNav" class="nav-list">
+      <button data-page="dashboard" class="active"><i>▦</i>হোম</button><button data-page="numbers"><i>☏</i>নম্বর</button>
+      <button data-page="sales"><i>▣</i>বিক্রয়</button>
+      <button data-page="purchases"><i>▤</i>ক্রয়</button>
+      <button data-page="products"><i>◇</i>স্টক / পণ্য</button>
+      <button data-page="customers"><i>♙</i>কাস্টমার</button>
+      <button data-page="suppliers"><i>♧</i>সাপ্লায়ার</button>
+      <button data-page="dues"><i>৳</i>বাকি</button><button data-page="service-dues"><i>৳</i>সেবা বাকি</button>
+      <button data-page="recharge"><i>⌁</i>রিচার্জ</button>
+      <button data-page="banking"><i>৳</i>মোবাইল ব্যাংকিং</button>
+      <button data-page="reports"><i>▥</i>রিপোর্ট</button>
+      <button data-page="settings"><i>⚙</i>সেটিংস</button>
+    </nav>
+    <div class="side-footer">GitHub Pages Ready<br><small>Local-first • Responsive</small></div>
+  </aside>
 
-<!-- ================= TOP BAR ================= -->
-<div class="topbar">
-  <div class="topbar-inner">
-    <div class="topbar-item"><span class="ico">📍</span> গামারুয়া দক্ষিণপাড়া, তাকওয়া মসজিদ সংলগ্ন</div>
-    <div class="topbar-right">
-      <a href="tel:+8801846655270" class="topbar-item"><span class="ico">📞</span> 01846-655270</a>
-      <a href="tel:+8801614456312" class="topbar-item"><span class="ico">📞</span> 01614-456312</a>
-    </div>
-  </div>
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn mobile-only" id="menuBtn">☰</button>
+      <div class="page-heading"><span>মাহমুদ টেলিকম</span><h1 id="pageTitle">ড্যাশবোর্ড</h1></div>
+      <div class="top-actions">
+        <button class="icon-btn" id="themeBtn" title="থিম">☼</button>
+        <button class="lang-btn" id="langBtn">EN</button>
+        <button class="user-chip" id="profileBtn"><span>MN</span><b>মোঃ নুরুল্লাহ</b></button>
+      </div>
+    </header>
+
+    <section class="content">
+      <!-- DASHBOARD -->
+      <section class="page active" id="page-dashboard">
+        <div class="dashboard-header"><div><div class="eyebrow">Overview</div><h2>আজকের ব্যবসার সারাংশ</h2></div><div class="date-pill" id="todayDate">--</div></div>
+        <div class="stats-grid">
+          <article class="stat-card"><div class="stat-icon blue">৳</div><div><small>আজকের বিক্রয়</small><strong id="todaySales">৳ ০</strong></div><em>আজ</em></article>
+          <article class="stat-card"><div class="stat-icon green">↗</div><div><small>মাসের বিক্রয়</small><strong id="monthSales">৳ ০</strong></div><em>এই মাস</em></article>
+          <article class="stat-card"><div class="stat-icon red">!</div><div><small>মোট বাকি</small><strong id="totalDue">৳ ০</strong></div><em>গ্রাহক</em></article>
+          <article class="stat-card"><div class="stat-icon orange">⌁</div><div><small>মাসের লাভ</small><strong id="monthProfit">৳ ০</strong></div><em>আনুমানিক</em></article>
+        </div>
+        <div class="collection-card">
+          <div class="collection-head"><div><span class="money-badge">৳</span><b>আজকের মোট কালেকশন</b></div><button class="outline-btn" data-page="dues">বাকি আদায়</button></div>
+          <div class="collection-total" id="todayCollection">৳ ০</div><p id="collectionText">আজ কোনো কালেকশন যোগ করা হয়নি</p>
+          <div class="mini-grid"><div><span>▣</span><small>নগদ/বিক্রয়</small><b id="todayCash">৳ ০</b></div><div><span>৳</span><small>বাকি পরিশোধ</small><b id="todayDuePaid">৳ ০</b></div></div>
+          <hr>
+          <div class="month-collection"><div><small>এই মাসের মোট কালেকশন</small><b id="monthCollection">৳ ০</b></div><span id="monthTx">০টি লেনদেন</span></div>
+          <div class="payment-chips"><span>নগদ <b id="cashMonth">৳ ০</b></span><span>বাকি আদায় <b id="dueMonth">৳ ০</b></span></div>
+        </div>
+        <div class="quick-title"><div><div class="eyebrow">Quick Access</div><h2>দ্রুত কাজ</h2></div></div>
+        <div class="quick-grid">
+          <button data-page="sales"><span>▣</span><b>নতুন বিক্রয়</b><small>বিল তৈরি করুন</small></button>
+          <button data-page="purchases"><span>▤</span><b>নতুন ক্রয়</b><small>স্টক বাড়ান</small></button>
+          <button data-page="recharge"><span>⌁</span><b>রিচার্জ</b><small>মোবাইল রিচার্জ</small></button>
+          <button data-page="banking"><span>৳</span><b>মোবাইল ব্যাংকিং</b><small>Cash In / Out</small></button>
+          <button data-page="customers"><span>♙</span><b>কাস্টমার</b><small>নতুন গ্রাহক</small></button>
+          <button data-page="reports"><span>▥</span><b>রিপোর্ট</b><small>হিসাব দেখুন</small></button>
+        </div>
+        <div class="two-col"><div class="panel"><div class="panel-head"><div><b>সাম্প্রতিক বিক্রয়</b><small>সর্বশেষ ৫টি</small></div><button class="text-btn" data-page="sales">সব দেখুন →</button></div><div id="recentSales"></div></div><div class="panel"><div class="panel-head"><div><b>বাকি গ্রাহক</b><small>সর্বোচ্চ বকেয়া</small></div><button class="text-btn" data-page="dues">সব দেখুন →</button></div><div id="topDues"></div></div></div>
+      </section>
+
+      <!-- NUMBERS -->
+<section class="page" id="page-numbers"><div class="section-title"><div><div class="eyebrow">Mobile Number Ledger</div><h2>নম্বর হিসাব</h2><p>মোবাইল নম্বরভিত্তিক লেনদেন, পরিশোধ ও বাকি হিসাব রাখুন।</p></div><button class="primary-btn" id="newNumberBtn">＋ নতুন হিসাব</button></div><div class="toolbar"><input id="numberSearch" placeholder="নম্বর, নাম বা নোট খুঁজুন..."><select id="numberFilter"><option value="all">সব</option><option value="due">শুধু বাকি</option><option value="paid">পরিশোধিত</option></select></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>তারিখ</th><th>নাম</th><th>নম্বর</th><th>বিবরণ</th><th>মোট</th><th>পরিশোধ</th><th>বাকি</th><th></th></tr></thead><tbody id="numberTable"></tbody></table></div></div></section>
+<!-- SALES -->
+      <section class="page" id="page-sales"><div class="section-title"><div><div class="eyebrow">Transactions</div><h2>বিক্রয় ব্যবস্থাপনা</h2><p>বিক্রয়, বাকি ও পেমেন্ট এক জায়গা থেকে পরিচালনা করুন।</p></div><button class="primary-btn" id="newSaleBtn">＋ নতুন বিক্রয়</button></div><div class="toolbar"><input id="saleSearch" placeholder="বিল, কাস্টমার বা ফোন খুঁজুন..."><select id="saleFilter"><option value="all">সব পেমেন্ট</option><option value="cash">নগদ</option><option value="due">বাকি</option><option value="partial">আংশিক</option></select></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>বিল</th><th>তারিখ</th><th>কাস্টমার</th><th>মোট</th><th>পরিশোধ</th><th>বাকি</th><th>অবস্থা</th><th></th></tr></thead><tbody id="salesTable"></tbody></table></div></div></section>
+
+      <!-- PURCHASES -->
+      <section class="page" id="page-purchases"><div class="section-title"><div><div class="eyebrow">Inventory In</div><h2>ক্রয় ব্যবস্থাপনা</h2><p>সাপ্লায়ার, ক্রয় মূল্য এবং স্টক আপডেট।</p></div><button class="primary-btn" id="newPurchaseBtn">＋ নতুন ক্রয়</button></div><div class="toolbar"><input id="purchaseSearch" placeholder="চালান বা সাপ্লায়ার খুঁজুন..."><select id="purchaseFilter"><option value="all">সব</option><option value="paid">পরিশোধিত</option><option value="due">বাকি</option></select></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>চালান</th><th>তারিখ</th><th>সাপ্লায়ার</th><th>পণ্য</th><th>মোট</th><th>পরিশোধ</th><th>বাকি</th><th></th></tr></thead><tbody id="purchaseTable"></tbody></table></div></div></section>
+
+      <!-- PRODUCTS -->
+      <section class="page" id="page-products"><div class="section-title"><div><div class="eyebrow">Inventory</div><h2>পণ্য ও স্টক</h2><p>স্টক, ক্রয় মূল্য, বিক্রয় মূল্য এবং কম স্টকের সতর্কতা।</p></div><button class="primary-btn" id="newProductBtn">＋ নতুন পণ্য</button></div><div class="inventory-cards"><div><small>মোট পণ্য</small><b id="productCount">০</b></div><div><small>স্টক ইউনিট</small><b id="stockUnits">০</b></div><div><small>স্টক মূল্য</small><b id="stockValue">৳ ০</b></div><div class="danger"><small>কম স্টক</small><b id="lowStockCount">০</b></div></div><div class="toolbar"><input id="productSearch" placeholder="পণ্যের নাম/কোড খুঁজুন..."><select id="productCat"><option value="all">সব ক্যাটাগরি</option></select></div><div class="product-grid" id="productGrid"></div></section>
+
+      <!-- CUSTOMERS -->
+      <section class="page" id="page-customers"><div class="section-title"><div><div class="eyebrow">CRM</div><h2>কাস্টমার</h2><p>গ্রাহকের যোগাযোগ, বিক্রয় ও বাকি হিসাব।</p></div><button class="primary-btn" id="newCustomerBtn">＋ নতুন কাস্টমার</button></div><div class="toolbar"><input id="customerSearch" placeholder="নাম বা ফোন খুঁজুন..."></div><div class="customer-grid" id="customerGrid"></div></section>
+
+      <!-- SUPPLIERS -->
+      <section class="page" id="page-suppliers"><div class="section-title"><div><div class="eyebrow">Vendors</div><h2>সাপ্লায়ার</h2><p>সরবরাহকারী ও পাওনা হিসাব।</p></div><button class="primary-btn" id="newSupplierBtn">＋ নতুন সাপ্লায়ার</button></div><div class="customer-grid" id="supplierGrid"></div></section>
+
+      <!-- DUES -->
+      <section class="page" id="page-dues"><div class="section-title"><div><div class="eyebrow">Receivable</div><h2>বাকি ও কালেকশন</h2><p>কে কত টাকা বাকি রেখেছে এবং কত পরিশোধ করেছে দেখুন।</p></div><button class="primary-btn" id="collectDueBtn">＋ বাকি আদায়</button></div><div class="due-summary"><div><small>মোট বাকি</small><b id="dueTotalPage">৳ ০</b></div><div><small>এই মাসে আদায়</small><b id="dueCollectedPage">৳ ০</b></div><div><small>বাকি কাস্টমার</small><b id="dueCustomerCount">০</b></div></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>কাস্টমার</th><th>ফোন</th><th>মোট বিক্রয়</th><th>পরিশোধ</th><th>বাকি</th><th>সর্বশেষ</th><th></th></tr></thead><tbody id="dueTable"></tbody></table></div></div></section>
+
+      <!-- SERVICE DUES -->
+<section class="page" id="page-service-dues"><div class="section-title"><div><div class="eyebrow">Service Receivables</div><h2>রিচার্জ ও মোবাইল ব্যাংকিং বাকি</h2><p>রিচার্জ ও মোবাইল ব্যাংকিংয়ের বাকি লেনদেন এক জায়গায় দেখুন এবং আদায় করুন।</p></div></div><div class="due-summary"><div><small>মোট সেবা বাকি</small><b id="serviceDueTotal">৳ ০</b></div><div><small>রিচার্জ বাকি</small><b id="serviceRechargeDue">৳ ০</b></div><div><small>মোবাইল ব্যাংকিং বাকি</small><b id="serviceBankingDue">৳ ০</b></div><div><small>বাকি লেনদেন</small><b id="serviceDueCount">০</b></div></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>তারিখ</th><th>সেবা</th><th>মাধ্যম</th><th>নম্বর</th><th>ধরন</th><th>মোট</th><th>পরিশোধ</th><th>বাকি</th><th></th></tr></thead><tbody id="serviceDueTable"></tbody></table></div></div></section>
+
+<!-- RECHARGE -->
+      <section class="page" id="page-recharge"><div class="section-title"><div><div class="eyebrow">Mobile Recharge</div><h2>মোবাইল রিচার্জ</h2><p>রিচার্জ লেনদেনের হিসাব রাখুন।</p></div><button class="primary-btn" id="newRechargeBtn">＋ রিচার্জ</button></div><div class="recharge-hero"><div><span>আজকের রিচার্জ</span><b id="rechargeToday">৳ ০</b></div><div><span>এই মাস</span><b id="rechargeMonth">৳ ০</b></div><div><span>লেনদেন</span><b id="rechargeCount">০</b></div></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>তারিখ</th><th>নম্বর</th><th>অপারেটর</th><th>ধরন</th><th>মোট</th><th>পরিশোধ</th><th>বাকি</th><th>মাধ্যম</th><th></th></tr></thead><tbody id="rechargeTable"></tbody></table></div></div></section>
+
+      <!-- BANKING -->
+      <section class="page" id="page-banking"><div class="section-title"><div><div class="eyebrow">Mobile Financial Service</div><h2>মোবাইল ব্যাংকিং</h2><p>বিকাশ, নগদ, রকেটসহ MFS-এর Cash In / Cash Out হিসাব।</p></div><button class="primary-btn" id="newBankBtn">＋ নতুন লেনদেন</button></div><div class="wallet-grid" id="walletGrid"></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>তারিখ</th><th>মাধ্যম</th><th>ধরন</th><th>নম্বর</th><th>মোট</th><th>পরিশোধ</th><th>বাকি</th><th>চার্জ</th><th></th></tr></thead><tbody id="bankTable"></tbody></table></div></div></section>
+
+      <!-- REPORTS -->
+      <section class="page" id="page-reports"><div class="section-title"><div><div class="eyebrow">Analytics</div><h2>রিপোর্ট ও হিসাব</h2><p>তারিখ অনুযায়ী ব্যবসার সারাংশ, লাভ ও লেনদেন।</p></div><div class="report-actions"><button class="outline-btn" id="printReportBtn">🖨️ প্রিন্ট</button><button class="primary-btn" id="pngReportBtn">🖼️ PNG</button></div></div><div class="report-filter"><label>শুরু <input type="date" id="reportFrom"></label><label>শেষ <input type="date" id="reportTo"></label><button class="primary-btn" id="applyReport">রিপোর্ট দেখুন</button></div><div id="reportArea" class="report-area"><div class="report-head"><img src="assets/logo.png"><div><h2>মাহমুদ টেলিকম</h2><p>ব্যবসায়িক রিপোর্ট</p></div><span id="reportDateText"></span></div><div class="report-kpis" id="reportKpis"></div><div class="report-chart"><div class="chart-title">বিক্রয় ও কালেকশন</div><div id="barChart" class="bars"></div></div><div class="panel"><div class="panel-head"><b>রিপোর্ট সারাংশ</b><small>নির্বাচিত সময়</small></div><div id="reportSummary"></div></div></div></section>
+
+      <!-- SETTINGS -->
+      <section class="page" id="page-settings"><div class="section-title"><div><div class="eyebrow">System</div><h2>সেটিংস</h2><p>দোকানের তথ্য, থিম, ডাটা ব্যাকআপ ও সিস্টেম কন্ট্রোল।</p></div></div><div class="settings-grid"><div class="settings-card"><h3>দোকানের তথ্য</h3><label>দোকানের নাম<input id="shopName" value="মাহমুদ টেলিকম"></label><label>মালিকের নাম<input id="ownerName" value="মোঃ নুরুল্লাহ"></label><label>মোবাইল নম্বর<input id="shopPhone" value="01846655270"></label><label>ঠিকানা<textarea id="shopAddress">বাংলাদেশ</textarea></label><button class="primary-btn" id="saveShop">সংরক্ষণ করুন</button></div><div class="settings-card"><h3>চেহারা ও ভাষা</h3><div class="setting-row"><div><b>ডার্ক মোড</b><small>চোখের আরামের জন্য</small></div><input type="checkbox" id="darkToggle"></div><div class="setting-row"><div><b>ভাষা</b><small id="settingLang">বাংলা</small></div><button class="outline-btn" id="settingLangBtn">English</button></div><div class="setting-row"><div><b>সিস্টেম স্ট্যাটাস</b><small>লোকাল ডাটা সংরক্ষিত</small></div><span class="online-badge">● Online</span></div></div><div class="settings-card"><h3>ডাটা ব্যাকআপ</h3><p class="muted">আপনার হিসাব এই ব্রাউজারে সংরক্ষিত থাকে। নিয়মিত JSON ব্যাকআপ রাখুন।</p><div class="setting-actions"><button class="outline-btn" id="exportBtn">⬇ JSON Backup</button><label class="file-btn">⬆ Import JSON<input type="file" id="importInput" accept="application/json"></label></div><button class="danger-btn" id="resetData">সব ডাটা রিসেট</button></div><div class="settings-card"><h3>প্রিন্ট ও রসিদ</h3><p class="muted">বিক্রয় রসিদ A4/80mm প্রিন্টের জন্য প্রস্তুত। রিপোর্ট PNG হিসেবে সংরক্ষণ করা যাবে।</p><button class="outline-btn" id="receiptTest">রসিদ প্রিভিউ</button></div></div></section>
+    </section>
+  </main>
 </div>
 
-<!-- ================= HEADER ================= -->
-<header class="header">
-  <div class="header-inner">
-    <a href="#home" class="brand">
-      <img src="images/logo.png" alt="Mahmud Telecom Logo" class="brand-logo">
-      <div class="brand-text">
-        <span class="brand-name">মাহমুদ টেলিকম</span>
-        <span class="brand-sub">Mahmud Telecom</span>
-      </div>
-    </a>
+<nav class="bottom-nav" id="bottomNav"><button data-page="dashboard" class="active"><i>▦</i><small>হোম</small></button><button data-page="numbers"><i>☏</i><small>নম্বর</small></button><button data-page="products"><i>◇</i><small>স্টক</small></button><button data-page="sales"><i>▣</i><small>বিক্রয়</small></button><button data-page="dues"><i>৳</i><small>বাকি</small></button><button data-page="service-dues"><i>৳</i><small>সেবা বাকি</small></button><button data-page="reports"><i>▥</i><small>রিপোর্ট</small></button><button data-page="settings"><i>⚙</i><small>সেটিংস</small></button></nav>
 
-    <div class="search-wrap">
-      <input type="text" id="searchInput" class="search-input" placeholder="পণ্য খুঁজুন... যেমনঃ চার্জার, হেডফোন">
-      <button class="search-btn" id="searchBtn" aria-label="খুঁজুন">
-        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M21 20.3l-5.4-5.4a7.6 7.6 0 1 0-1.4 1.4l5.4 5.4zM4.8 10.4a5.6 5.6 0 1 1 11.2 0 5.6 5.6 0 0 1-11.2 0z"/></svg>
-      </button>
-    </div>
+<!-- MODAL -->
+<div class="modal" id="modal"><div class="modal-backdrop" data-close></div><div class="modal-box"><button class="modal-close" data-close>×</button><div id="modalContent"></div></div></div>
 
-    <button class="cart-btn" id="cartBtn" aria-label="কার্ট">
-      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M7 22a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm10 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4zM3 3h2l1.6 8.6a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L20 6H6.2"/></svg>
-      <span class="cart-count" id="cartCount">0</span>
-    </button>
-  </div>
 
-  <!-- pill navigation -->
-  <nav class="pillnav-wrap">
-    <ul class="pillnav" id="pillnav">
-      <li><a href="#home" class="active" data-target="home">হোম</a></li>
-      <li><a href="#products" data-target="products">পণ্য</a></li>
-      <li><a href="#services" data-target="services">সেবা</a></li>
-      <li><a href="#contact" data-target="contact">যোগাযোগ</a></li>
-    </ul>
-  </nav>
-</header>
-
-<!-- ================= HERO ================= -->
-<section class="hero" id="home">
-  <div class="hero-inner">
-    <div class="hero-text">
-      <p class="eyebrow">গামারুয়ার বিশ্বস্ত মোবাইল ও ইলেকট্রনিক্স দোকান</p>
-      <h1>মোবাইলের সব প্রয়োজনে, <span>মাহমুদ টেলিকম</span></h1>
-      <p class="hero-desc">মোবাইল এক্সেসরিজ, চার্জার, হেডফোন, গ্লাস প্রোটেক্টর থেকে শুরু করে ছবি তোলা ও ফটোকপি — সবকিছু এক জায়গায়। প্রোপাইটরঃ মোঃ নুরুল্লাহ।</p>
-      <div class="hero-actions">
-        <a href="#products" class="btn btn-primary">পণ্য দেখুন</a>
-        <a href="https://wa.me/8801846655270" target="_blank" rel="noopener" class="btn btn-whatsapp">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.7 14.2c-.2.7-1.4 1.3-2 1.4-.5.1-1.2.2-3.6-.8-3-1.2-4.9-4.3-5.1-4.5-.1-.2-1.2-1.6-1.2-3s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .5-.1.7.6l.9 2.2c.1.2.1.4 0 .6l-.5.7c-.1.2-.3.4-.1.7.2.3.9 1.5 1.9 2.4 1.3 1.2 2.4 1.5 2.7 1.7.3.2.5.1.7-.1l.9-1c.2-.3.5-.2.8-.1l2 1c.2.1.4.2.5.4.1.2.1 1-.1 1.7z"/></svg>
-          হোয়াটসঅ্যাপে অর্ডার
-        </a>
-      </div>
-    </div>
-
-    <div class="hero-card neu">
-      <p class="hero-card-title">ক্যাটাগরি বেছে নিন</p>
-      <div class="chip-grid" id="categoryChips">
-        <button class="chip chip-red" data-cat="accessories">📱 মোবাইল এক্সেসরিজ</button>
-        <button class="chip chip-blue" data-cat="audio">🎧 হেডফোন ও ব্লুটুথ</button>
-        <button class="chip chip-yellow" data-cat="protect">🛡️ গ্লাস ও কভার</button>
-        <button class="chip chip-green" data-cat="electric">🔌 ইলেকট্রিক পণ্য</button>
-        <button class="chip chip-pink" data-cat="photo">📸 ফটোগ্রাফি সেবা</button>
-        <button class="chip chip-orange" data-cat="all">✨ সব পণ্য</button>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ================= PRODUCTS ================= -->
-<section class="section" id="products">
-  <div class="section-inner">
-    <div class="section-head">
-      <h2>আমাদের পণ্যসমূহ</h2>
-      <p>মানসম্পন্ন মোবাইল ও ইলেকট্রনিক্স সামগ্রী, সাশ্রয়ী মূল্যে</p>
-    </div>
-
-    <div class="filter-row" id="filterRow">
-      <button class="filter-btn active" data-filter="all">সব</button>
-      <button class="filter-btn" data-filter="accessories">এক্সেসরিজ</button>
-      <button class="filter-btn" data-filter="audio">অডিও</button>
-      <button class="filter-btn" data-filter="protect">গ্লাস ও কভার</button>
-      <button class="filter-btn" data-filter="electric">ইলেকট্রিক</button>
-      <button class="filter-btn" data-filter="photo">ফটোগ্রাফি</button>
-    </div>
-
-    <div class="product-grid" id="productGrid"></div>
-    <p class="empty-msg" id="emptyMsg" hidden>কোনো পণ্য পাওয়া যায়নি। অন্য কিছু খুঁজে দেখুন।</p>
-  </div>
-</section>
-
-<!-- ================= SERVICES ================= -->
-<section class="section section-alt" id="services">
-  <div class="section-inner">
-    <div class="section-head">
-      <h2>আমাদের সেবাসমূহ</h2>
-      <p>এখানে সব ধরনের মোবাইল সার্ভিসিং করা হয়</p>
-    </div>
-    <div class="service-grid">
-      <div class="service-card neu">
-        <div class="service-ico ico-red">🔧</div>
-        <h3>মোবাইল সার্ভিসিং</h3>
-        <p>সব ধরনের মোবাইল মেরামত ও সমস্যার সমাধান দক্ষ হাতে।</p>
-      </div>
-      <div class="service-card neu">
-        <div class="service-ico ico-blue">📷</div>
-        <h3>ছবি তোলা</h3>
-        <p>পাসপোর্ট, স্টুডিও ও বিশেষ মুহূর্তের ছবি তোলার সুব্যবস্থা।</p>
-      </div>
-      <div class="service-card neu">
-        <div class="service-ico ico-yellow">🖌️</div>
-        <h3>ছবি এডিট করা</h3>
-        <p>প্রফেশনাল মানের ছবি এডিটিং ও প্রিন্ট সার্ভিস।</p>
-      </div>
-      <div class="service-card neu">
-        <div class="service-ico ico-green">🖨️</div>
-        <h3>ফটোকপি</h3>
-        <p>দ্রুত ও পরিষ্কার ফটোকপি, প্রিন্ট ও ল্যামিনেশন সেবা।</p>
-      </div>
-    </div>
-
-    <div class="payment-strip neu">
-      <p class="payment-title">পেমেন্ট করুন সহজেই</p>
-      <div class="payment-badges">
-        <span class="pay-badge pay-bkash">বিকাশ</span>
-        <span class="pay-badge pay-nagad">নগদ</span>
-        <span class="pay-badge pay-rocket">রকেট</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ================= CONTACT ================= -->
-<section class="section" id="contact">
-  <div class="section-inner">
-    <div class="section-head">
-      <h2>যোগাযোগ করুন</h2>
-      <p>যেকোনো প্রয়োজনে সরাসরি কল অথবা মেসেজ করুন</p>
-    </div>
-
-    <div class="contact-grid">
-      <div class="contact-card neu">
-        <h3>দোকানের ঠিকানা</h3>
-        <p>গামারুয়া দক্ষিণপাড়া, তাকওয়া মসজিদ সংলগ্ন,<br>আরই চৌমুহনী মাদ্রাসার পূর্বদিকে</p>
-        <h3>প্রোপাইটর</h3>
-        <p>মোঃ নুরুল্লাহ</p>
-        <div class="contact-links">
-          <a href="tel:+8801846655270" class="btn btn-outline">📞 01846-655270</a>
-          <a href="tel:+8801614456312" class="btn btn-outline">📞 01614-456312</a>
-        </div>
-      </div>
-
-      <div class="contact-card neu contact-form-card">
-        <h3>দ্রুত মেসেজ পাঠান</h3>
-        <form id="contactForm" class="contact-form">
-          <input type="text" placeholder="আপনার নাম" required>
-          <input type="tel" placeholder="আপনার মোবাইল নম্বর" required>
-          <textarea rows="3" placeholder="আপনার বার্তা লিখুন..." required></textarea>
-          <button type="submit" class="btn btn-primary full">হোয়াটসঅ্যাপে পাঠান</button>
-        </form>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ================= FOOTER ================= -->
-<footer class="footer">
-  <div class="footer-inner">
-    <div class="footer-brand">
-      <img src="images/logo.png" alt="Mahmud Telecom" class="footer-logo">
-      <p>মাহমুদ টেলিকম — এখানে সব ধরনের মোবাইল সার্ভিসিং করা হয়</p>
-    </div>
-    <div class="footer-links">
-      <a href="#home">হোম</a>
-      <a href="#products">পণ্য</a>
-      <a href="#services">সেবা</a>
-      <a href="#contact">যোগাযোগ</a>
-    </div>
-    <p class="footer-copy">© 2026 Mahmud Telecom. সর্বস্বত্ব সংরক্ষিত।</p>
-  </div>
-</footer>
-
-<!-- ================= CART DRAWER ================= -->
-<div class="overlay" id="overlay"></div>
-<aside class="cart-drawer" id="cartDrawer">
-  <div class="cart-head">
-    <h3>আপনার কার্ট</h3>
-    <button id="closeCart" aria-label="বন্ধ করুন">✕</button>
-  </div>
-  <div class="cart-items" id="cartItems"></div>
-  <div class="cart-footer">
-    <div class="cart-total-row">
-      <span>মোট</span>
-      <span id="cartTotal">৳ 0</span>
-    </div>
-    <a href="#" id="checkoutBtn" target="_blank" rel="noopener" class="btn btn-whatsapp full">
-      হোয়াটসঅ্যাপে অর্ডার করুন
-    </a>
-  </div>
-</aside>
-
-<!-- Floating WhatsApp button -->
-<a href="https://wa.me/8801846655270" target="_blank" rel="noopener" class="fab-whatsapp" aria-label="WhatsApp">
-  <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.7 14.2c-.2.7-1.4 1.3-2 1.4-.5.1-1.2.2-3.6-.8-3-1.2-4.9-4.3-5.1-4.5-.1-.2-1.2-1.6-1.2-3s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .5-.1.7.6l.9 2.2c.1.2.1.4 0 .6l-.5.7c-.1.2-.3.4-.1.7.2.3.9 1.5 1.9 2.4 1.3 1.2 2.4 1.5 2.7 1.7.3.2.5.1.7-.1l.9-1c.2-.3.5-.2.8-.1l2 1c.2.1.4.2.5.4.1.2.1 1-.1 1.7z"/></svg>
-</a>
-
-<script src="js/script.js"></script>
-<div style="text-align:center;padding:18px;font-size:13px"><a href="admin-login.html" style="display:inline-block;padding:8px 14px;border-radius:999px;background:#eef4ff;color:#1769e0;font-weight:700;text-decoration:none">🔐 দোকান পরিচালনা</a></div><div style="text-align:center;padding:0 18px 18px;font-size:13px"><a href="admin-login.html" style="color:inherit;text-decoration:none">Admin</a></div><button id="mtCheckoutButton" onclick="MT_OPEN_CHECKOUT()" aria-label="অর্ডার / Checkout">🛒 অর্ডার / Checkout</button></body>
-</html>
+<script src="js/api-config.js?v=11"></script>
+<script src="js/app.js?v=11"></script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});</script>
+</body></html>
