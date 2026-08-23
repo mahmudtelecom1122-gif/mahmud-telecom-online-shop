@@ -27,24 +27,13 @@ let cloudSyncReady=false;
 let cloudSyncBusy=false;
 let cloudSyncTimer=null;
 function apiBase(){return String(window.MT_API_BASE||'').replace(/\/$/,'')}
-function showSyncStatus(text,ok=true){
+
+ function showSyncStatus(text,ok=true){
   const el=document.querySelector('.online-badge');
-  if(!el)return;
-
-  const now=new Date();
-
-  const time=now.toLocaleTimeString('bn-BD',{
-    hour:'2-digit',
-    minute:'2-digit',
-    second:'2-digit',
-    hour12:true
-  });
-
-  el.textContent='● '+text+' — '+time;
-  el.style.opacity=ok?'1':'.75';
-}
-  const el=document.querySelector('.online-badge');
-  if(el){el.textContent=ok?'● '+text:'● '+text;el.style.opacity=ok?'1':'.75';}
+  if(el){
+    el.textContent=ok?'● '+text:'● '+text;
+    el.style.opacity=ok?'1':'.75';
+  }
 }
 async function cloudGet(){
   const base=apiBase(); if(!base) return null;
@@ -467,19 +456,3 @@ function addPageActions(){document.querySelectorAll('.page').forEach(page=>{let 
 
 
 setTimeout(()=>{renderAll();addPageActions();initCloudSync();},0);
-setInterval(()=>{
-  const el=document.querySelector('.online-badge');
-  if(!el)return;
-
-  const now=new Date();
-
-  const time=now.toLocaleTimeString('bn-BD',{
-    hour:'2-digit',
-    minute:'2-digit',
-    second:'2-digit',
-    hour12:true
-  });
-
-  const current=el.textContent.replace(/\s—.*$/,'');
-  el.textContent=current+' — '+time;
-},1000);
