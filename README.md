@@ -63,3 +63,9 @@ Mobile Banking and Mobile Recharge-এর রসিদে Print ও PNG অপ�
 - Mobile Banking add/save/delete handlers hardened.
 - Local save now persists before rendering/cloud sync.
 - Cache bumped to V14 to prevent stale app.js.
+
+
+## V15 Mobile Banking Fix
+- Dedicated mobile banking save button bypasses browser form-submit issues.
+- Mobile banking delete uses one delegated handler.
+- Local changes are protected from cloud pull until cloud push completes.
