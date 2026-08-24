@@ -31,55 +31,29 @@ async function ensureTable(){
 const arrays=['products','customers','suppliers','sales','purchases','recharge','banking','numbers'];
 const clone=x=>x&&typeof x==='object'?JSON.parse(JSON.stringify(x)):{};
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-function mergeArray(local=[],remote=[],base=[]){
-  const lm=new Map((Array.isArray(local)?local:[]).map(x=>[x.id,x]));
-  const rm=new Map((Array.isArray(remote)?remote:[]).map(x=>[x.id,x]));
-  const bm=new Map((Array.isArray(base)?base:[]).map(x=>[x.id,x]));
-  const ids=new Set([...lm.keys(),...rm.keys(),...bm.keys()]);
-  const out=[];
+const recordSame=(a,b)=>{if(!a||!b)return false;const x={...a},y={...b};delete x._mt;delete y._mt;return same(x,y)};
+const norm=s=>{const x=clone(s);x._deleted=x._deleted&&typeof x._deleted==='object'?x._deleted:{};for(const k of arrays){x[k]=Array.isArray(x[k])?x[k]:[];x._deleted[k]=x._deleted[k]&&typeof x._deleted[k]==='object'?x._deleted[k]:{}}return x};
+function eventTime(state,key,id){const d=Number(state?._deleted?.[key]?.[id]||0);const r=(state?.[key]||[]).find(x=>x.id===id);return Math.max(d,Number(r?._mt)||0)}
+function mergeArray(local,remote,base,key){
+  const lm=new Map((local||[]).map(x=>[x.id,x])),rm=new Map((remote||[]).map(x=>[x.id,x])),bm=new Map((base||[]).map(x=>[x.id,x]));
+  const ids=new Set([...lm.keys(),...rm.keys(),...bm.keys(),...Object.keys(local?._deleted?.[key]||{}),...Object.keys(remote?._deleted?.[key]||{}),...Object.keys(base?._deleted?.[key]||{})]);
+  const out=[],deleted={};
   for(const id of ids){
-    const hasL=lm.has(id),hasR=rm.has(id),hasB=bm.has(id);
-    const l=lm.get(id),r=rm.get(id),b=bm.get(id);
-    if(!hasL && hasB){
-      if(!hasR || same(r,b)) continue;
-      const lt=Number(l?. _mt)||0,rt=Number(r?._mt)||0;
-      if(rt>lt) out.push(r);
-      else continue;
-    } else if(!hasR && hasB){
-      if(!hasL || same(l,b)) continue;
-      const lt=Number(l?._mt)||0,rt=Number(r?._mt)||0;
-      if(lt>rt) out.push(l);
-      else continue;
-    } else if(!hasL && hasR){
-      out.push(r);
-    } else if(hasL && !hasR){
-      out.push(l);
-    } else {
-      const lt=Number(l?._mt)||0,rt=Number(r?._mt)||0;
-      if(lt>rt) out.push(l);
-      else if(rt>lt) out.push(r);
-      else if(same(l,r)) out.push(l);
-      else {
-        const lc=!same(l,b),rc=!same(r,b);
-        if(lc&&!rc) out.push(l);
-        else if(!lc&&rc) out.push(r);
-        else out.push(l);
-      }
-    }
+    const lt=eventTime(local,key,id),rt=eventTime(remote,key,id),bt=eventTime(base,key,id),l=lm.get(id),r=rm.get(id),b=bm.get(id);let winner='remote';
+    if(lt>rt)winner='local'; else if(rt>lt)winner='remote';
+    else if(l&&r&&recordSame(l,r))winner='same';
+    else {const lc=!recordSame(l,b)||(lt!==bt),rc=!recordSame(r,b)||(rt!==bt);if(lc&&!rc)winner='local';else if(!lc&&rc)winner='remote';else if(lc&&rc)winner='local';}
+    if(winner==='local'){if(local?._deleted?.[key]?.[id]){deleted[id]=Number(local._deleted[key][id]);continue}if(l)out.push(l);else if(r)out.push(r)}
+    else if(winner==='remote'){if(remote?._deleted?.[key]?.[id]){deleted[id]=Number(remote._deleted[key][id]);continue}if(r)out.push(r);else if(l)out.push(l)}
+    else if(l)out.push(l);
   }
-  return out;
+  return {items:out,deleted};
 }
 function mergeState(local,remote,base){
-  local=clone(local);remote=clone(remote);base=clone(base);
-  const out={...remote};
-  for(const key of new Set([...Object.keys(local),...Object.keys(remote),...Object.keys(base)])){
-    if(arrays.includes(key)) out[key]=mergeArray(local[key],remote[key],base[key]);
-    else {
-      const lc=!same(local[key],base[key]),rc=!same(remote[key],base[key]);
-      out[key]=lc&&!rc?local[key]:(lc&&rc&&!same(local[key],remote[key])?local[key]:remote[key]);
-    }
-  }
-  return out;
+  const a=norm(local),r=norm(remote),b=norm(base||remote),out={...r,_deleted:{}};
+  for(const key of arrays){const m=mergeArray(a[key],r[key],b[key],key);out[key]=m.items;out._deleted[key]=m.deleted;}
+  if(!same(a.shop,b.shop)&&same(r.shop,b.shop))out.shop=a.shop;else if(!same(a.shop,b.shop)&&!same(r.shop,b.shop)&&!same(a.shop,r.shop))out.shop=a.shop;
+  return norm(out);
 }
 
 app.get('/api/health', async (req,res)=>{
@@ -118,4 +92,4 @@ app.put('/api/state', async (req,res)=>{
 
 app.use(express.static(__dirname));
 app.use((req,res)=>res.sendFile(path.join(__dirname,'index.html')));
-app.listen(port,()=>console.log(`Mahmud Telecom V16 server listening on ${port}`));
+app.listen(port,()=>console.log(`Mahmud Telecom V19 server listening on ${port}`));

@@ -28,6 +28,7 @@ let cloudSyncBusy=false;
 let cloudSyncTimer=null;
 let cloudPullTimer=null;
 let cloudBaseSnapshot=(()=>{try{const x=JSON.parse(localStorage.getItem(KEY+'_cloudBase')||'null');return x&&typeof x==='object'?normaliseState(x):null}catch(e){return null}})();
+let lastSavedState=(()=>{try{const x=JSON.parse(localStorage.getItem(KEY)||'null');return x&&typeof x==='object'?normaliseState(x):null}catch(e){return null}})();
 let cloudUpdatedAt=0;
 let localChangePending=!cloudBaseSnapshot||!same(db,cloudBaseSnapshot);
 
@@ -35,61 +36,54 @@ function apiBase(){return String(window.MT_API_BASE||'').replace(/\/$/,'')}
 function showSyncStatus(text,ok=true){const el=document.querySelector('.online-badge');if(el){el.textContent='● '+text;el.style.opacity=ok?'1':'.75';}}
 function cloneState(s){return s&&typeof s==='object'?structuredClone(s):structuredClone(stateDefault)}
 function same(a,b){try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){return false}}
+function recordSame(a,b){if(!a||!b)return false;const x={...a},y={...b};delete x._mt;delete y._mt;return same(x,y)}
 function normaliseState(s){
   s=cloneState(s);
   const arrays=['products','customers','suppliers','sales','purchases','recharge','banking','numbers'];
   arrays.forEach(k=>{s[k]=Array.isArray(s[k])?s[k]:[]});
+  s._deleted=(s._deleted&&typeof s._deleted==='object')?s._deleted:{};
+  arrays.forEach(k=>{s._deleted[k]=(s._deleted[k]&&typeof s._deleted[k]==='object')?s._deleted[k]:{}});
   s.recharge=s.recharge.map(x=>({...x,paid:Number(x.paid??x.amount??0),due:Math.max(0,Number(x.due??((x.amount??0)-(x.paid??x.amount??0))))}));
   s.banking=s.banking.map(x=>({...x,paid:Number(x.paid??x.amount??0),due:Math.max(0,Number(x.due??((x.amount??0)-(x.paid??x.amount??0))))}));
   s.numbers=s.numbers.map(x=>({...x,amount:Number(x.amount||0),paid:Number(x.paid||0),due:Math.max(0,Number(x.due??((x.amount||0)-(x.paid||0))))}));
   return s;
 }
-function mergeArray(local,remote,base){
+function eventTime(state,key,id){
+  const d=Number(state?._deleted?.[key]?.[id]||0);
+  const r=(state?.[key]||[]).find(x=>x.id===id);
+  return Math.max(d,Number(r?._mt)||0);
+}
+function mergeArray(local,remote,base,key){
   const lm=new Map((local||[]).map(x=>[x.id,x])),rm=new Map((remote||[]).map(x=>[x.id,x])),bm=new Map((base||[]).map(x=>[x.id,x]));
-  const ids=new Set([...lm.keys(),...rm.keys(),...bm.keys()]);
-  const out=[];
+  const ids=new Set([...lm.keys(),...rm.keys(),...bm.keys(),...Object.keys(local?._deleted?.[key]||{}),...Object.keys(remote?._deleted?.[key]||{}),...Object.keys(base?._deleted?.[key]||{})]);
+  const out=[]; const deleted={};
   for(const id of ids){
-    const hasL=lm.has(id),hasR=rm.has(id),hasB=bm.has(id);
+    const lt=eventTime(local,key,id),rt=eventTime(remote,key,id),bt=eventTime(base,key,id);
     const l=lm.get(id),r=rm.get(id),b=bm.get(id);
-    // A record missing locally while it existed in the common base means it was deleted locally.
-    if(!hasL && hasB){
-      if(!hasR || same(r,b)) continue;
-      // Both devices changed the record after the common base; latest _mt wins when available.
-      const lt=Number(l?._mt)||0,rt=Number(r?._mt)||0;
-      if(rt>lt) out.push(r);
-      else continue;
-    }
-    // A record missing remotely while it existed in the base means it was deleted remotely.
-    else if(!hasR && hasB){
-      if(!hasL || same(l,b)) continue;
-      const lt=Number(l?._mt)||0,rt=Number(r?._mt)||0;
-      if(lt>rt) out.push(l);
-      else continue;
-    }
-    // New record on only one side.
-    else if(!hasL && hasR){ out.push(r); }
-    else if(hasL && !hasR){ out.push(l); }
+    let winner='remote';
+    if(lt>rt)winner='local';
+    else if(rt>lt)winner='remote';
+    else if(l&&r&&recordSame(l,r))winner='same';
     else {
-      const lt=Number(l?._mt)||0,rt=Number(r?._mt)||0;
-      if(lt>rt) out.push(l);
-      else if(rt>lt) out.push(r);
-      else if(same(l,r)) out.push(l);
-      else {
-        const lc=!same(l,b),rc=!same(r,b);
-        if(lc&&!rc) out.push(l);
-        else if(!lc&&rc) out.push(r);
-        else out.push(l);
-      }
+      const lc=!recordSame(l,b)||(lt!==bt),rc=!recordSame(r,b)||(rt!==bt);
+      if(lc&&!rc)winner='local'; else if(!lc&&rc)winner='remote'; else if(lc&&rc)winner='local'; else winner='remote';
     }
+    if(winner==='local'){
+      if(local?._deleted?.[key]?.[id]){deleted[id]=Number(local._deleted[key][id]);continue;}
+      if(l)out.push(l); else if(r)out.push(r);
+    }else if(winner==='remote'){
+      if(remote?._deleted?.[key]?.[id]){deleted[id]=Number(remote._deleted[key][id]);continue;}
+      if(r)out.push(r); else if(l)out.push(l);
+    }else if(l)out.push(l);
   }
-  return out;
+  return {items:out,deleted};
 }
 function mergeStates(local,remote,base){
-  const a=normaliseState(local),r=normaliseState(remote),b=normaliseState(base||remote),merged={...r};
-  for(const key of Object.keys({...a,...r,...b})){
-    if(Array.isArray(a[key])||Array.isArray(r[key])||Array.isArray(b[key])) merged[key]=mergeArray(a[key],r[key],b[key]);
-    else {const lc=!same(a[key],b[key]),rc=!same(r[key],b[key]);merged[key]=lc&&!rc?a[key]:(lc&&rc&&!same(a[key],r[key])?a[key]:r[key]);}
-  }
+  const a=normaliseState(local),r=normaliseState(remote),b=normaliseState(base||remote),merged={...r,_deleted:{}};
+  const arrays=['products','customers','suppliers','sales','purchases','recharge','banking','numbers'];
+  for(const key of arrays){const m=mergeArray(a[key],r[key],b[key],key);merged[key]=m.items;merged._deleted[key]=m.deleted;}
+  if(!same(a.shop,b.shop)&&same(r.shop,b.shop))merged.shop=a.shop;
+  else if(!same(a.shop,b.shop)&&!same(r.shop,b.shop)&&!same(a.shop,r.shop))merged.shop=a.shop;
   return normaliseState(merged);
 }
 async function cloudGet(){
@@ -102,45 +96,27 @@ async function cloudPut(state,baseState){
   const r=await fetch(base+'/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:normaliseState(state),base_state:normaliseState(baseState||state)})});
   if(!r.ok)throw new Error('Cloud PUT '+r.status);return await r.json();
 }
-function scheduleCloudSync(delay=250){
-  if(!apiBase()||!cloudSyncReady)return;
-  clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>syncPush(),delay);
-}
+function scheduleCloudSync(delay=250){if(!apiBase()||!cloudSyncReady)return;clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>syncPush(),delay)}
 async function syncPush(){
   if(!apiBase()||!cloudSyncReady)return;
   if(cloudSyncBusy){scheduleCloudSync(500);return;}
   cloudSyncBusy=true;showSyncStatus('Syncing…');
   try{
     const remote=await cloudGet();
-    if(remote?.state){
-      const merged=mergeStates(db,remote.state,cloudBaseSnapshot||remote.state);
-      db=merged;localStorage.setItem(KEY,JSON.stringify(db));renderAll();
-    }
-    const result=await cloudPut(db,cloudBaseSnapshot||db);
-    if(result?.state){
-      db=normaliseState(result.state);
-      localStorage.setItem(KEY,JSON.stringify(db));
-      try{renderAll()}catch(e){console.warn('Render after cloud save failed',e)}
-      cloudBaseSnapshot=cloneState(db);
-    }else{
-      cloudBaseSnapshot=cloneState(db);
-    }
+    if(remote?.state){db=mergeStates(db,remote.state,cloudBaseSnapshot||remote.state);localStorage.setItem(KEY,JSON.stringify(db));renderAll();}
+    const result=await cloudPut(db,cloudBaseSnapshot||remote?.state||db);
+    if(result?.state)db=normaliseState(result.state);
+    localStorage.setItem(KEY,JSON.stringify(db));
+    cloudBaseSnapshot=cloneState(db);lastSavedState=cloneState(db);
     localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
     localChangePending=false;cloudUpdatedAt=Date.parse(result?.updated_at||'')||Date.now();showSyncStatus('Cloud Sync');
+    try{renderAll()}catch(e){console.warn('Render after cloud save failed',e)}
   }catch(e){console.warn('Cloud sync failed',e);showSyncStatus('Local Mode',false);localChangePending=true;}
-  finally{cloudSyncBusy=false;if(localChangePending)scheduleCloudSync(1500);}
+  finally{cloudSyncBusy=false;if(localChangePending)scheduleCloudSync(1500)}
 }
 async function pullCloud(){
   if(!apiBase()||!cloudSyncReady||cloudSyncBusy||localChangePending)return;
-  try{
-    const remote=await cloudGet();if(!remote?.state)return;
-    const merged=mergeStates(db,remote.state,cloudBaseSnapshot||remote.state);
-    if(!same(merged,db)){db=merged;localStorage.setItem(KEY,JSON.stringify(db));renderAll();}
-    cloudBaseSnapshot=cloneState(merged);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
-    cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();
-    if(!same(merged,remote.state)){localChangePending=true;scheduleCloudSync(250)}
-    else showSyncStatus('Cloud Sync');
-  }catch(e){console.warn('Cloud pull failed',e);showSyncStatus('Local Mode',false)}
+  try{const remote=await cloudGet();if(!remote?.state)return;const merged=mergeStates(db,remote.state,cloudBaseSnapshot||remote.state);if(!same(merged,db)){db=merged;localStorage.setItem(KEY,JSON.stringify(db));renderAll()}cloudBaseSnapshot=cloneState(merged);lastSavedState=cloneState(merged);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();if(!same(merged,remote.state)){localChangePending=true;scheduleCloudSync(250)}else showSyncStatus('Cloud Sync')}catch(e){console.warn('Cloud pull failed',e);showSyncStatus('Local Mode',false)}
 }
 async function initCloudSync(){
   if(!apiBase()){showSyncStatus('Local Mode',false);return;}
@@ -148,31 +124,33 @@ async function initCloudSync(){
   try{
     const remote=await cloudGet();
     if(remote?.state){
-      const base=cloudBaseSnapshot||remote.state;
-      const merged=mergeStates(db,remote.state,base);
-      db=merged;localStorage.setItem(KEY,JSON.stringify(db));cloudBaseSnapshot=cloneState(remote.state);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
-      cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();renderAll();
-      if(!same(db,remote.state)){localChangePending=true;await syncPush()} else localChangePending=false;
+      const base=cloudBaseSnapshot||remote.state;db=mergeStates(db,remote.state,base);localStorage.setItem(KEY,JSON.stringify(db));cloudBaseSnapshot=cloneState(remote.state);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();renderAll();
+      if(!same(db,remote.state)){localChangePending=true;await syncPush()}else{localChangePending=false;lastSavedState=cloneState(db)}
     }else{
-      await cloudPut(db,db);cloudBaseSnapshot=cloneState(db);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));localChangePending=false;cloudUpdatedAt=Date.now();
+      const result=await cloudPut(db,db);if(result?.state)db=normaliseState(result.state);cloudBaseSnapshot=cloneState(db);lastSavedState=cloneState(db);localStorage.setItem(KEY,JSON.stringify(db));localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));localChangePending=false;cloudUpdatedAt=Date.now();
     }
-    cloudSyncReady=true;showSyncStatus('Cloud Sync');clearInterval(cloudPullTimer);cloudPullTimer=setInterval(pullCloud,5000);
-    if(localChangePending)scheduleCloudSync(250);
-  }catch(e){
-    console.warn('Cloud connection unavailable',e);cloudSyncReady=true;showSyncStatus('Local Mode',false);clearInterval(cloudPullTimer);cloudPullTimer=setInterval(pullCloud,8000);if(localChangePending)scheduleCloudSync(2000);
-  }
+    cloudSyncReady=true;showSyncStatus('Cloud Sync');clearInterval(cloudPullTimer);cloudPullTimer=setInterval(pullCloud,5000);if(localChangePending)scheduleCloudSync(250);
+  }catch(e){console.warn('Cloud connection unavailable',e);cloudSyncReady=true;showSyncStatus('Local Mode',false);clearInterval(cloudPullTimer);cloudPullTimer=setInterval(pullCloud,8000);if(localChangePending)scheduleCloudSync(2000)}
 }
 
 db=normaliseState(db);
+lastSavedState=lastSavedState?normaliseState(lastSavedState):cloneState(db);
+function markLocalChanges(prev,next){
+  const arrays=['products','customers','suppliers','sales','purchases','recharge','banking','numbers'];
+  if(!next._deleted||typeof next._deleted!=='object')next._deleted={};
+  const baseNow=Date.now();let tick=0;
+  const stamp=()=>baseNow*1000+(++tick);
+  for(const key of arrays){
+    next._deleted[key]=(next._deleted[key]&&typeof next._deleted[key]==='object')?next._deleted[key]:{};
+    const pm=new Map((prev?.[key]||[]).map(x=>[x.id,x])),cm=new Map((next[key]||[]).map(x=>[x.id,x]));
+    for(const [id,item] of cm){const old=pm.get(id);if(!old||!recordSame(old,item))item._mt=stamp();delete next._deleted[key][id];}
+    for(const [id] of pm){if(!cm.has(id))next._deleted[key][id]=stamp();}
+  }
+}
 function save(){
   try{
-    db=normaliseState(db);
-    localChangePending=true;
-    localStorage.setItem(KEY,JSON.stringify(db));
-    localStorage.setItem(KEY+'_updated',String(Date.now()));
-    try{renderAll()}catch(e){console.error('Render after save failed',e);try{renderBanking()}catch(_){} }
-    scheduleCloudSync(250);
-    return true;
+    const prev=lastSavedState?cloneState(lastSavedState):cloneState(db);db=normaliseState(db);markLocalChanges(prev,db);localChangePending=true;localStorage.setItem(KEY,JSON.stringify(db));localStorage.setItem(KEY+'_updated',String(Date.now()));lastSavedState=cloneState(db);
+    try{renderAll()}catch(e){console.error('Render after save failed',e);try{renderBanking()}catch(_){} }scheduleCloudSync(250);return true;
   }catch(e){console.error('Local save failed',e);toast('লোকাল হিসাব সংরক্ষণ করা যায়নি');return false;}
 }
 
