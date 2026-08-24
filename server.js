@@ -38,18 +38,34 @@ function mergeArray(local=[],remote=[],base=[]){
   const ids=new Set([...lm.keys(),...rm.keys(),...bm.keys()]);
   const out=[];
   for(const id of ids){
+    const hasL=lm.has(id),hasR=rm.has(id),hasB=bm.has(id);
     const l=lm.get(id),r=rm.get(id),b=bm.get(id);
-    if(l===undefined&&r===undefined)continue;
-    if(l===undefined){out.push(r);continue;}
-    if(r===undefined){out.push(l);continue;}
-    const lt=Number(l._mt)||0,rt=Number(r._mt)||0;
-    if(lt>rt){out.push(l);continue;}
-    if(rt>lt){out.push(r);continue;}
-    if(same(l,r)){out.push(l);continue;}
-    const lc=!same(l,b),rc=!same(r,b);
-    if(lc&&!rc)out.push(l);
-    else if(!lc&&rc)out.push(r);
-    else out.push(l);
+    if(!hasL && hasB){
+      if(!hasR || same(r,b)) continue;
+      const lt=Number(l?. _mt)||0,rt=Number(r?._mt)||0;
+      if(rt>lt) out.push(r);
+      else continue;
+    } else if(!hasR && hasB){
+      if(!hasL || same(l,b)) continue;
+      const lt=Number(l?._mt)||0,rt=Number(r?._mt)||0;
+      if(lt>rt) out.push(l);
+      else continue;
+    } else if(!hasL && hasR){
+      out.push(r);
+    } else if(hasL && !hasR){
+      out.push(l);
+    } else {
+      const lt=Number(l?._mt)||0,rt=Number(r?._mt)||0;
+      if(lt>rt) out.push(l);
+      else if(rt>lt) out.push(r);
+      else if(same(l,r)) out.push(l);
+      else {
+        const lc=!same(l,b),rc=!same(r,b);
+        if(lc&&!rc) out.push(l);
+        else if(!lc&&rc) out.push(r);
+        else out.push(l);
+      }
+    }
   }
   return out;
 }

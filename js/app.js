@@ -49,11 +49,38 @@ function mergeArray(local,remote,base){
   const ids=new Set([...lm.keys(),...rm.keys(),...bm.keys()]);
   const out=[];
   for(const id of ids){
+    const hasL=lm.has(id),hasR=rm.has(id),hasB=bm.has(id);
     const l=lm.get(id),r=rm.get(id),b=bm.get(id);
-    const lc=!same(l,b),rc=!same(r,b);
-    if(lc&&!rc){if(l!==undefined)out.push(l);}
-    else if(!lc&&rc){if(r!==undefined)out.push(r);}
-    else if(lc&&rc){if(same(l,r)){if(l!==undefined)out.push(l)}else if(l!==undefined){out.push(l)}}
+    // A record missing locally while it existed in the common base means it was deleted locally.
+    if(!hasL && hasB){
+      if(!hasR || same(r,b)) continue;
+      // Both devices changed the record after the common base; latest _mt wins when available.
+      const lt=Number(l?._mt)||0,rt=Number(r?._mt)||0;
+      if(rt>lt) out.push(r);
+      else continue;
+    }
+    // A record missing remotely while it existed in the base means it was deleted remotely.
+    else if(!hasR && hasB){
+      if(!hasL || same(l,b)) continue;
+      const lt=Number(l?._mt)||0,rt=Number(r?._mt)||0;
+      if(lt>rt) out.push(l);
+      else continue;
+    }
+    // New record on only one side.
+    else if(!hasL && hasR){ out.push(r); }
+    else if(hasL && !hasR){ out.push(l); }
+    else {
+      const lt=Number(l?._mt)||0,rt=Number(r?._mt)||0;
+      if(lt>rt) out.push(l);
+      else if(rt>lt) out.push(r);
+      else if(same(l,r)) out.push(l);
+      else {
+        const lc=!same(l,b),rc=!same(r,b);
+        if(lc&&!rc) out.push(l);
+        else if(!lc&&rc) out.push(r);
+        else out.push(l);
+      }
+    }
   }
   return out;
 }
@@ -90,8 +117,16 @@ async function syncPush(){
       db=merged;localStorage.setItem(KEY,JSON.stringify(db));renderAll();
     }
     const result=await cloudPut(db,cloudBaseSnapshot||db);
-    cloudBaseSnapshot=cloneState(db);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
-    localChangePending=false;cloudUpdatedAt=Date.now();showSyncStatus('Cloud Sync');
+    if(result?.state){
+      db=normaliseState(result.state);
+      localStorage.setItem(KEY,JSON.stringify(db));
+      try{renderAll()}catch(e){console.warn('Render after cloud save failed',e)}
+      cloudBaseSnapshot=cloneState(db);
+    }else{
+      cloudBaseSnapshot=cloneState(db);
+    }
+    localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
+    localChangePending=false;cloudUpdatedAt=Date.parse(result?.updated_at||'')||Date.now();showSyncStatus('Cloud Sync');
   }catch(e){console.warn('Cloud sync failed',e);showSyncStatus('Local Mode',false);localChangePending=true;}
   finally{cloudSyncBusy=false;if(localChangePending)scheduleCloudSync(1500);}
 }

@@ -10,4 +10,4 @@ Final mobile banking save/delete and cloud synchronization repair.
 - Cache/version bumped to V16.
 
 
-V17 Cloud Sync: record-level timestamps and deletion tombstones prevent saved mobile banking records from disappearing or deleted records from returning.
+V18 Cloud Sync: base-aware merge preserves new saves and correctly propagates deletions across devices without resurrecting deleted records.
