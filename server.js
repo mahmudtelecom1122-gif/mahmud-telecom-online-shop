@@ -12,8 +12,7 @@ const pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env
 
 app.use(express.json({ limit: '5mb' }));
 app.use((req,res,next)=>{
-  const origin=req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin',origin);
+  res.setHeader('Access-Control-Allow-Origin','*');
   res.setHeader('Vary','Origin');
   res.setHeader('Access-Control-Allow-Methods','GET,PUT,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers','Content-Type');
@@ -52,9 +51,10 @@ app.put('/api/state', async (req,res)=>{
   if(!state || typeof state!=='object') return res.status(400).json({ok:false,error:'Invalid state'});
   try{
     await ensureTable();
-    await pool.query(`INSERT INTO mahmud_telecom_state(id,state,updated_at) VALUES(1,$1,NOW())
-      ON CONFLICT(id) DO UPDATE SET state=EXCLUDED.state, updated_at=NOW()`,[JSON.stringify(state)]);
-    res.json({ok:true,saved:true});
+    const r=await pool.query(`INSERT INTO mahmud_telecom_state(id,state,updated_at) VALUES(1,$1,NOW())
+      ON CONFLICT(id) DO UPDATE SET state=EXCLUDED.state, updated_at=NOW()
+      RETURNING updated_at`,[JSON.stringify(state)]);
+    res.json({ok:true,saved:true,updated_at:r.rows[0]?.updated_at||null});
   }catch(e){console.error(e);res.status(500).json({ok:false,error:'Database unavailable'});}
 });
 

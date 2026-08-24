@@ -26,84 +26,154 @@ let db=JSON.parse(localStorage.getItem(KEY)||'null')||structuredClone(stateDefau
 let cloudSyncReady=false;
 let cloudSyncBusy=false;
 let cloudSyncTimer=null;
-function apiBase(){return String(window.MT_API_BASE||'').replace(/\/$/,'')}
+let cloudPullTimer=null;
+let cloudBaseSnapshot=(()=>{try{const x=JSON.parse(localStorage.getItem(KEY+'_cloudBase')||'null');return x&&typeof x==='object'?x:structuredClone(db)}catch(e){return structuredClone(db)}})();
+let cloudUpdatedAt=0;
 
- function showSyncStatus(text,ok=true){
+function apiBase(){return String(window.MT_API_BASE||'').replace(/\/$/,'')}
+function showSyncStatus(text,ok=true){
   const el=document.querySelector('.online-badge');
-  if(el){
-    el.textContent=ok?'● '+text:'● '+text;
-    el.style.opacity=ok?'1':'.75';
+  if(el){el.textContent='● '+text;el.style.opacity=ok?'1':'.75';}
+}
+function cloneState(s){return s&&typeof s==='object'?structuredClone(s):structuredClone(stateDefault)}
+function same(a,b){
+  try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){return false}
+}
+function normaliseState(s){
+  s=cloneState(s);
+  const arrays=['products','customers','suppliers','sales','purchases','recharge','banking','numbers'];
+  arrays.forEach(k=>{s[k]=Array.isArray(s[k])?s[k]:[]});
+  s.recharge=s.recharge.map(x=>({...x,paid:Number(x.paid??x.amount??0),due:Math.max(0,Number(x.due??((x.amount??0)-(x.paid??x.amount??0))))}));
+  s.banking=s.banking.map(x=>({...x,paid:Number(x.paid??x.amount??0),due:Math.max(0,Number(x.due??((x.amount??0)-(x.paid??x.amount??0))))}));
+  s.numbers=s.numbers.map(x=>({...x,amount:Number(x.amount||0),paid:Number(x.paid||0),due:Math.max(0,Number(x.due??((x.amount||0)-(x.paid||0))))}));
+  return s;
+}
+function mergeArray(local,remote,base){
+  const lm=new Map((local||[]).map(x=>[x.id, x]));
+  const rm=new Map((remote||[]).map(x=>[x.id, x]));
+  const bm=new Map((base||[]).map(x=>[x.id, x]));
+  const ids=new Set([...lm.keys(),...rm.keys(),...bm.keys()]);
+  const out=[];
+  for(const id of ids){
+    const l=lm.get(id),r=rm.get(id),b=bm.get(id);
+    const localChanged=!same(l,b);
+    const remoteChanged=!same(r,b);
+    let chosen;
+    if(localChanged && !remoteChanged) chosen=l;
+    else if(remoteChanged && !localChanged) chosen=r;
+    else if(localChanged && remoteChanged) chosen=same(l,r)?l:l; // local wins only on a true conflict
+    else chosen=l??r??b;
+    if(chosen!==undefined) out.push(chosen);
   }
+  return out;
+}
+function mergeStates(local,remote,base){
+  const a=normaliseState(local),r=normaliseState(remote),b=normaliseState(base||remote);
+  const merged={...r};
+  for(const key of Object.keys({...a,...r,...b})){
+    if(Array.isArray(a[key])||Array.isArray(r[key])||Array.isArray(b[key])){
+      merged[key]=mergeArray(a[key],r[key],b[key]);
+    }else{
+      const lc=!same(a[key],b[key]),rc=!same(r[key],b[key]);
+      merged[key]=lc&&!rc?a[key]:lc&&rc&&!same(a[key],r[key])?a[key]:r[key];
+    }
+  }
+  return normaliseState(merged);
 }
 async function cloudGet(){
   const base=apiBase(); if(!base) return null;
   const r=await fetch(base+'/api/state',{method:'GET',cache:'no-store'});
   if(!r.ok) throw new Error('Cloud GET '+r.status);
   const j=await r.json();
-  return j && j.state ? j.state : null;
+  return {state:j&&j.state?normaliseState(j.state):null,updated_at:j?.updated_at||null};
 }
 async function cloudPut(state){
-  const base=apiBase();
-  if(!base) return null;
-
-  const r=await fetch(base+'/api/state',{
-    method:'PUT',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({state})
-  });
-
-  const text=await r.text();
-
-  if(!r.ok){
-    throw new Error('Cloud PUT '+r.status+' '+text);
-  }
-
-  try{
-    return JSON.parse(text);
-  }catch(e){
-    return text;
-  }
+  const base=apiBase(); if(!base) return null;
+  const r=await fetch(base+'/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:normaliseState(state)})});
+  if(!r.ok) throw new Error('Cloud PUT '+r.status);
+  return await r.json();
 }
 async function syncPush(){
   if(!apiBase()||!cloudSyncReady||cloudSyncBusy)return;
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer=setTimeout(async()=>{
     cloudSyncBusy=true;showSyncStatus('Syncing…');
-    try{await cloudPut(db);showSyncStatus('Cloud Sync');}
-    catch(e){console.warn('Cloud sync failed',e);showSyncStatus('Local Mode',false);}
+    try{
+      const remote=await cloudGet();
+      if(remote?.state){
+        const merged=mergeStates(db,remote.state,cloudBaseSnapshot);
+        db=merged;
+        localStorage.setItem(KEY,JSON.stringify(db));
+        renderAll();
+      }
+      const result=await cloudPut(db);
+      cloudBaseSnapshot=cloneState(db);
+      localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
+      cloudUpdatedAt=Date.now();
+      showSyncStatus('Cloud Sync');
+    }catch(e){console.warn('Cloud sync failed',e);showSyncStatus('Local Mode',false);}
     finally{cloudSyncBusy=false;}
-  },250);
+  },300);
+}
+async function pullCloud(){
+  if(!apiBase()||!cloudSyncReady||cloudSyncBusy)return;
+  try{
+    const remote=await cloudGet();
+    if(!remote?.state){await cloudPut(db);cloudBaseSnapshot=cloneState(db);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));showSyncStatus('Cloud Sync');return;}
+    const merged=mergeStates(db,remote.state,cloudBaseSnapshot);
+    const changed=!same(merged,db);
+    const remoteChanged=!same(remote.state,cloudBaseSnapshot);
+    if(changed){
+      db=merged;
+      localStorage.setItem(KEY,JSON.stringify(db));
+      renderAll();
+    }
+    cloudBaseSnapshot=cloneState(merged);
+    localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
+    cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();
+    if(!same(merged,remote.state)) await cloudPut(merged);
+    if(changed||remoteChanged) showSyncStatus('Cloud Sync');
+  }catch(e){console.warn('Cloud pull failed',e);showSyncStatus('Local Mode',false);}
 }
 async function initCloudSync(){
   if(!apiBase()){showSyncStatus('Local Mode',false);return;}
   showSyncStatus('Connecting…');
   try{
     const remote=await cloudGet();
-    if(remote && typeof remote==='object'){
-      db=remote;
-      db.numbers=Array.isArray(db.numbers)?db.numbers:[];
-      db.recharge=(db.recharge||[]).map(x=>({...x,paid:Number(x.paid??x.amount??0),due:Math.max(0,Number(x.due??((x.amount??0)-(x.paid??x.amount??0))))}));
-      db.banking=(db.banking||[]).map(x=>({...x,paid:Number(x.paid??x.amount??0),due:Math.max(0,Number(x.due??((x.amount??0)-(x.paid??x.amount??0))))}));
+    if(remote?.state){
+      db=normaliseState(remote.state);
       localStorage.setItem(KEY,JSON.stringify(db));
+      cloudBaseSnapshot=cloneState(db);
+      localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
+      cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();
       renderAll();
-      showSyncStatus('Cloud Sync');
     }else{
-      await cloudPut(db);
-      showSyncStatus('Cloud Sync');
+      db=normaliseState(db);
+      const result=await cloudPut(db);
+      cloudBaseSnapshot=cloneState(db);
+      localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
+      cloudUpdatedAt=Date.now();
     }
     cloudSyncReady=true;
-  }catch(e){console.warn('Cloud connection unavailable',e);showSyncStatus('Local Mode',false);cloudSyncReady=true;}
+    showSyncStatus('Cloud Sync');
+    clearInterval(cloudPullTimer);
+    cloudPullTimer=setInterval(pullCloud,5000);
+  }catch(e){
+    console.warn('Cloud connection unavailable',e);
+    cloudSyncReady=true;
+    showSyncStatus('Local Mode',false);
+    clearInterval(cloudPullTimer);
+    cloudPullTimer=setInterval(pullCloud,8000);
+  }
 }
-
-db.numbers=Array.isArray(db.numbers)?db.numbers:[];
-db.recharge=(db.recharge||[]).map(x=>({...x,paid:Number(x.paid??x.amount??0),due:Math.max(0,Number(x.due??((x.amount??0)-(x.paid??x.amount??0))))}));
-db.banking=(db.banking||[]).map(x=>({...x,paid:Number(x.paid??x.amount??0),due:Math.max(0,Number(x.due??((x.amount??0)-(x.paid??x.amount??0))))}));
+db=normaliseState(db);
 function save(){
   localStorage.setItem(KEY,JSON.stringify(db));
   try{localStorage.setItem(KEY+'_updated',String(Date.now()))}catch(e){}
   renderAll();
   syncPush();
 }
+
 function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>el.classList.remove('show'),2200)}
 function showPage(page){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id==='page-'+page));document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('active',x.dataset.page===page));const titles={dashboard:'ড্যাশবোর্ড',numbers:'নম্বর হিসাব',sales:'বিক্রয় ব্যবস্থাপনা',purchases:'ক্রয় ব্যবস্থাপনা',products:'স্টক / পণ্য',customers:'কাস্টমার',suppliers:'সাপ্লায়ার',dues:'বাকি ও কালেকশন',recharge:'মোবাইল রিচার্জ',banking:'মোবাইল ব্যাংকিং','service-dues':'সেবা বাকি',reports:'রিপোর্ট ও হিসাব',settings:'সেটিংস'};document.getElementById('pageTitle').textContent=titles[page]||'ড্যাশবোর্ড';document.getElementById('sidebar').classList.remove('open');history.replaceState(null,'','#'+page);window.scrollTo({top:0,behavior:'smooth'});if(page==='reports')renderReport();if(page==='service-dues')renderServiceDues()}
 document.getElementById('newNumberBtn').onclick=()=>openModal('নম্বর হিসাব',`<div class="form-grid">${field('তারিখ','date',today(),'date','required')}${field('নাম','name','','text','required')}${field('মোবাইল নম্বর','phone','','tel','required')}${field('বিবরণ','note','','text')}${field('মোট টাকা','amount','0','number','required min="0"')}${field('পরিশোধ','paid','0','number','required min="0"')}</div>`,f=>{const amount=+f.get('amount'),paid=+f.get('paid');db.numbers.push({id:uid('N'),date:f.get('date'),name:f.get('name'),phone:f.get('phone'),note:f.get('note'),amount,paid,due:Math.max(0,amount-paid)});save();toast('নম্বর হিসাব সংরক্ষণ হয়েছে')});
@@ -133,7 +203,9 @@ function openModal(title,html,onSubmit){
 }
 document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))document.getElementById('modal').classList.remove('show')});document.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('modal').classList.remove('show')});
 function field(label,name,value='',type='text',extra=''){return `<label>${label}<input name="${name}" type="${type}" value="${value}" ${extra}></label>`}
-function selectField(label,name,opts){return `<label>${label}<select name="${name}">${opts.map(o=>`<option>${o}</option>`).join('')}</select></label>`}
+function selectField(label,name,opts,value=''){
+  return `<label>${label}<select name="${name}">${opts.map(o=>`<option value="${o}" ${String(o)===String(value)?'selected':''}>${o}</option>`).join('')}</select></label>`;
+}
 function renderDashboard(){const d=today(),m=month();const todaySales=db.sales.filter(x=>x.date===d).reduce((a,x)=>a+x.total,0);const monthSales=db.sales.filter(x=>x.date.startsWith(m)).reduce((a,x)=>a+x.total,0);const due=db.customers.reduce((a,x)=>a+Math.max(0,x.total-x.paid),0);const profit=db.sales.filter(x=>x.date.startsWith(m)).reduce((a,x)=>a+x.profit,0);const duePaidToday=db.customers.reduce((a,x)=>a+0,0);document.getElementById('todaySales').textContent=money(todaySales);document.getElementById('monthSales').textContent=money(monthSales);document.getElementById('totalDue').textContent=money(due);document.getElementById('monthProfit').textContent=money(profit);document.getElementById('todayCollection').textContent=money(todaySales+duePaidToday);document.getElementById('todayCash').textContent=money(todaySales);document.getElementById('todayDuePaid').textContent=money(duePaidToday);document.getElementById('monthCollection').textContent=money(monthSales);document.getElementById('cashMonth').textContent=money(monthSales);document.getElementById('dueMonth').textContent=money(0);document.getElementById('monthTx').textContent=bn(db.sales.filter(x=>x.date.startsWith(m)).length)+'টি লেনদেন';document.getElementById('collectionText').textContent=todaySales?'আজকের বিক্রয় ও কালেকশন হিসাব':'আজ কোনো কালেকশন যোগ করা হয়নি';document.getElementById('todayDate').textContent=new Intl.DateTimeFormat('bn-BD',{day:'numeric',month:'long',year:'numeric'}).format(new Date());document.getElementById('recentSales').innerHTML=db.sales.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(x=>`<div class="recent-row"><span class="round-mini">৳</span><div><b>${x.id} • ${x.customer}</b><small>${x.date}</small></div><strong>${money(x.total)}</strong></div>`).join('')||'<div class="empty">কোনো বিক্রয় নেই</div>';document.getElementById('topDues').innerHTML=db.customers.map(x=>({...x,due:x.total-x.paid})).filter(x=>x.due>0).sort((a,b)=>b.due-a.due).slice(0,5).map(x=>`<div class="recent-row"><span class="round-mini">${x.name.slice(0,1)}</span><div><b>${x.name}</b><small>${x.phone}</small></div><strong class="stock-low">${money(x.due)}</strong></div>`).join('')||'<div class="empty">কোনো বাকি নেই</div>'}
 function renderSales(){const q=(document.getElementById('saleSearch').value||'').toLowerCase(),f=document.getElementById('saleFilter').value;let rows=db.sales.filter(x=>(`${x.id} ${x.customer} ${x.phone}`).toLowerCase().includes(q));if(f==='cash')rows=rows.filter(x=>x.paid>=x.total);if(f==='due')rows=rows.filter(x=>x.paid===0);if(f==='partial')rows=rows.filter(x=>x.paid>0&&x.paid<x.total);document.getElementById('salesTable').innerHTML=rows.map(x=>{const due=x.total-x.paid;return `<tr><td><strong>${x.id}</strong></td><td>${x.date}</td><td>${x.customer}<br><small>${x.phone||''}</small></td><td>${money(x.total)}</td><td>${money(x.paid)}</td><td>${money(due)}</td><td><span class="badge ${due?'red':'green'}">${due?'বাকি':'পরিশোধিত'}</span></td><td><button class="row-btn" data-receipt="${x.id}">রসিদ</button></td></tr>`}).join('')||`<tr><td colspan="8"><div class="empty">কোনো বিক্রয় পাওয়া যায়নি</div></td></tr>`}
 function renderPurchases(){const q=(document.getElementById('purchaseSearch').value||'').toLowerCase(),f=document.getElementById('purchaseFilter').value;let rows=db.purchases.filter(x=>`${x.id} ${x.supplier} ${x.items}`.toLowerCase().includes(q));if(f==='paid')rows=rows.filter(x=>x.paid>=x.total);if(f==='due')rows=rows.filter(x=>x.paid<x.total);document.getElementById('purchaseTable').innerHTML=rows.map(x=>`<tr><td><strong>${x.id}</strong></td><td>${x.date}</td><td>${x.supplier}</td><td>${x.items}</td><td>${money(x.total)}</td><td>${money(x.paid)}</td><td>${money(x.total-x.paid)}</td><td><button class="row-btn" data-delete-purchase="${x.id}">মুছুন</button></td></tr>`).join('')||`<tr><td colspan="8"><div class="empty">কোনো ক্রয় নেই</div></td></tr>`}
@@ -157,7 +229,12 @@ function renderRecharge(){const m=month(),d=today(),todaySum=db.recharge.filter(
 function renderBanking(){const methods=['বিকাশ','নগদ','রকেট','উপায়'];document.getElementById('walletGrid').innerHTML=methods.map(m=>{const sum=db.banking.filter(x=>x.method===m).reduce((a,x)=>a+x.amount,0);return `<div class="wallet-card"><div class="wallet-logo">৳</div><b>${m}</b><small>মোট লেনদেন</small><b>${money(sum)}</b></div>`}).join('');document.getElementById('bankTable').innerHTML=db.banking.slice().reverse().map(x=>`<tr><td>${x.date}</td><td><strong>${x.method}</strong></td><td>${x.type}</td><td>${x.phone||'-'}</td><td>${money(x.amount)}</td><td>${money(x.paid||0)}</td><td class="${x.due?'stock-low':''}">${money(x.due||0)}</td><td>${money(x.charge||0)}</td><td><button class="row-btn" data-bank-receipt="${x.id}">রসিদ</button> <button class="row-btn" data-edit-bank="${x.id}">এডিট</button> <button class="row-btn" data-collect-bank="${x.id}">বাকি</button> <button class="row-btn" data-delete-bank="${x.id}">মুছুন</button></td></tr>`).join('')||'<tr><td colspan="9"><div class="empty">কোনো ব্যাংকিং লেনদেন নেই</div></td></tr>'}
 function renderNumbers(){const q=(document.getElementById('numberSearch').value||'').toLowerCase(),f=document.getElementById('numberFilter').value;let rows=db.numbers.filter(x=>`${x.name||''} ${x.phone||''} ${x.note||''}`.toLowerCase().includes(q));if(f==='due')rows=rows.filter(x=>(x.due||0)>0);if(f==='paid')rows=rows.filter(x=>(x.due||0)<=0);document.getElementById('numberTable').innerHTML=rows.slice().reverse().map(x=>`<tr><td>${x.date}</td><td>${x.name||'-'}</td><td>${x.phone||'-'}</td><td>${x.note||'-'}</td><td>${money(x.amount)}</td><td>${money(x.paid||0)}</td><td class="${x.due?'stock-low':''}">${money(x.due||0)}</td><td><button class="row-btn" data-number-receipt="${x.id}">রসিদ</button> <button class="row-btn" data-edit-number="${x.id}">এডিট</button> <button class="row-btn" data-delete-number="${x.id}">মুছুন</button></td></tr>`).join('')||'<tr><td colspan="8"><div class="empty">কোনো নম্বর হিসাব নেই</div></td></tr>'}
 function renderReport(){const from=document.getElementById('reportFrom').value||month()+'-01',to=document.getElementById('reportTo').value||today();document.getElementById('reportFrom').value=from;document.getElementById('reportTo').value=to;const sales=db.sales.filter(x=>x.date>=from&&x.date<=to),purchase=db.purchases.filter(x=>x.date>=from&&x.date<=to),recharge=db.recharge.filter(x=>x.date>=from&&x.date<=to),bank=db.banking.filter(x=>x.date>=from&&x.date<=to);const sale=sales.reduce((a,x)=>a+x.total,0),paid=sales.reduce((a,x)=>a+x.paid,0),profit=sales.reduce((a,x)=>a+x.profit,0),pur=purchase.reduce((a,x)=>a+x.total,0);document.getElementById('reportDateText').textContent=`${from} → ${to}`;document.getElementById('reportKpis').innerHTML=[['মোট বিক্রয়',money(sale)],['মোট পরিশোধ',money(paid)],['মোট ক্রয়',money(pur)],['আনুমানিক লাভ',money(profit)]].map(x=>`<div class="report-kpi"><small>${x[0]}</small><b>${x[1]}</b></div>`).join('');const max=Math.max(sale,paid,1);document.getElementById('barChart').innerHTML=`<div class="bar-group"><span class="bar-value">${money(sale)}</span><div class="bar" style="height:${Math.max(4,sale/max*130)}px"></div><span class="bar-label">বিক্রয়</span></div><div class="bar-group"><span class="bar-value">${money(paid)}</span><div class="bar collection" style="height:${Math.max(4,paid/max*130)}px"></div><span class="bar-label">কালেকশন</span></div><div class="bar-group"><span class="bar-value">${money(pur)}</span><div class="bar" style="height:${Math.max(4,pur/max*130)}px"></div><span class="bar-label">ক্রয়</span></div>`;document.getElementById('reportSummary').innerHTML=`<div class="report-summary"><div class="summary-line"><span>বিক্রয় লেনদেন</span><b>${bn(sales.length)}</b></div><div class="summary-line"><span>রিচার্জ</span><b>${money(recharge.reduce((a,x)=>a+x.amount,0))}</b></div><div class="summary-line"><span>মোবাইল ব্যাংকিং</span><b>${money(bank.reduce((a,x)=>a+x.amount,0))}</b></div><div class="summary-line"><span>বাকি বিক্রয়</span><b>${money(sales.reduce((a,x)=>a+x.total-x.paid,0))}</b></div></div>`}
-function renderAll(){renderDashboard();renderNumbers();renderSales();renderPurchases();renderProducts();renderCustomers();renderSuppliers();renderDues();renderRecharge();renderBanking();renderServiceDues();renderReport()}
+function syncShopInputs(){
+  const s=db.shop||{};
+  const fields=[['shopName',s.name||''],['ownerName',s.owner||''],['shopPhone',s.phone||''],['shopAddress',s.address||'']];
+  fields.forEach(([id,v])=>{const el=document.getElementById(id);if(el)el.value=v});
+}
+function renderAll(){renderDashboard();renderNumbers();renderSales();renderPurchases();renderProducts();renderCustomers();renderSuppliers();renderDues();renderRecharge();renderBanking();renderServiceDues();renderReport();syncShopInputs()}
 
 // Modal creators
 document.getElementById('newSaleBtn').onclick=()=>openModal('নতুন বিক্রয়',`<div class="form-grid">${field('কাস্টমারের নাম','customer','','text','required')}${field('ফোন','phone','','tel')} ${field('মোট টাকা','total','','number','required min="0"')}${field('পরিশোধ','paid','','number','required min="0"')} ${field('তারিখ','date',today(),'date','required')}<label>নোট<textarea name="note"></textarea></label></div>`,f=>{const x={id:uid('S'),date:f.get('date'),customer:f.get('customer'),phone:f.get('phone'),total:+f.get('total'),paid:+f.get('paid'),profit:Math.round(+f.get('total')*.12)};db.sales.push(x);let c=db.customers.find(c=>c.phone&&c.phone===x.phone);if(!c){c={id:uid('c'),name:x.customer,phone:x.phone,total:0,paid:0,last:x.date};db.customers.push(c)}c.total+=x.total;c.paid+=x.paid;c.last=x.date;save();toast('বিক্রয় সংরক্ষণ হয়েছে')});
@@ -167,13 +244,13 @@ document.getElementById('newCustomerBtn').onclick=()=>openModal('নতুন �
 document.getElementById('newSupplierBtn').onclick=()=>openModal('নতুন সাপ্লায়ার',`<div class="form-grid">${field('নাম','name','','text','required')}${field('ফোন','phone','','tel','required')}${field('মোট ক্রয়','total','0','number','min="0"')}${field('পরিশোধ','paid','0','number','min="0"')}</div>`,f=>{db.suppliers.push({id:uid('s'),name:f.get('name'),phone:f.get('phone'),total:+f.get('total'),paid:+f.get('paid'),last:today()});save();toast('সাপ্লায়ার যোগ হয়েছে')});
 function collect(id){const c=db.customers.find(x=>x.id===id);if(!c)return;const due=c.total-c.paid;openModal('বাকি আদায়',`<div class="form-grid">${field('কাস্টমার','customer',c.name,'text','readonly')}${field('বর্তমান বাকি','due',due,'number','readonly')}${field('আদায়ের টাকা','amount',due,'number','required min="1" max="'+due+'"')}${field('তারিখ','date',today(),'date','required')}</div>`,f=>{c.paid+=+f.get('amount');c.last=f.get('date');save();toast('বাকি আদায় সংরক্ষণ হয়েছে')})}
 document.getElementById('collectDueBtn').onclick=()=>{const c=db.customers.find(x=>x.total-x.paid>0);if(c)collect(c.id);else toast('কোনো বাকি নেই')};
-document.getElementById('newRechargeBtn').onclick=()=>openModal('মোবাইল রিচার্জ',`<div class="form-grid">${field('তারিখ','date',today(),'date','required')}${field('মোবাইল নম্বর','phone','','tel','required')}${selectField('অপারেটর','operator',['GP','Robi','Banglalink','Airtel','Teletalk'])}${field('টাকার পরিমাণ','amount','100','number','required min="1"')}${field('পরিশোধ','paid','100','number','required min="0"')}${selectField('ধরন','type',['সাধারণ','ইন্টারনেট','মিনিট','বান্ডেল'],x.type)}${selectField('মাধ্যম','method',['নগদ','বিকাশ','নগদ MFS','রকেট'],x.method)}</div>`,f=>{const amount=+f.get('amount'),paid=+f.get('paid');db.recharge.push({id:uid('R'),date:f.get('date'),phone:f.get('phone'),operator:f.get('operator'),type:f.get('type'),amount,paid,due:Math.max(0,amount-paid),method:f.get('method')});save();toast('রিচার্জ লেনদেন সংরক্ষণ হয়েছে')});
+document.getElementById('newRechargeBtn').onclick=()=>openModal('মোবাইল রিচার্জ',`<div class="form-grid">${field('তারিখ','date',today(),'date','required')}${field('মোবাইল নম্বর','phone','','tel','required')}${selectField('অপারেটর','operator',['GP','Robi','Banglalink','Airtel','Teletalk'])}${field('টাকার পরিমাণ','amount','100','number','required min="1"')}${field('পরিশোধ','paid','100','number','required min="0"')}${selectField('ধরন','type',['সাধারণ','ইন্টারনেট','মিনিট','বান্ডেল'],'সাধারণ')}${selectField('মাধ্যম','method',['নগদ','বিকাশ','নগদ MFS','রকেট'],'নগদ')}</div>`,f=>{const amount=+f.get('amount'),paid=+f.get('paid');db.recharge.push({id:uid('R'),date:f.get('date'),phone:f.get('phone'),operator:f.get('operator'),type:f.get('type'),amount,paid,due:Math.max(0,amount-paid),method:f.get('method')});save();toast('রিচার্জ লেনদেন সংরক্ষণ হয়েছে')});
 document.getElementById('newBankBtn').onclick=()=>openModal('মোবাইল ব্যাংকিং লেনদেন',`<div class="form-grid">${field('তারিখ','date',today(),'date','required')}${selectField('মাধ্যম','method',['বিকাশ','নগদ','রকেট','উপায়'])}${selectField('ধরন','type',['Cash In','Cash Out','Send Money','Payment'])}${field('নম্বর','phone','','tel')}${field('টাকার পরিমাণ','amount','0','number','required min="0"')}${field('পরিশোধ','paid','0','number','required min="0"')}${field('চার্জ','charge','0','number','min="0"')}</div>`,f=>{const amount=+f.get('amount'),paid=+f.get('paid');db.banking.push({id:uid('B'),date:f.get('date'),method:f.get('method'),type:f.get('type'),phone:f.get('phone'),amount,paid,due:Math.max(0,amount-paid),charge:+f.get('charge')});save();toast('ব্যাংকিং লেনদেন সংরক্ষণ হয়েছে')});
 
 document.getElementById('newNumberBtn').onclick=()=>openModal('নম্বর হিসাব',`<div class="form-grid">${field('তারিখ','date',today(),'date','required')}${field('নাম','name','','text','required')}${field('মোবাইল নম্বর','phone','','tel','required')}${field('বিবরণ','note','','text')}${field('মোট টাকা','amount','0','number','required min="0"')}${field('পরিশোধ','paid','0','number','required min="0"')}</div>`,f=>{const amount=+f.get('amount'),paid=+f.get('paid');db.numbers.push({id:uid('N'),date:f.get('date'),name:f.get('name'),phone:f.get('phone'),note:f.get('note'),amount,paid,due:Math.max(0,amount-paid)});save();toast('নম্বর হিসাব সংরক্ষণ হয়েছে')});
 document.addEventListener('click',e=>{const c=e.target.closest('[data-collect]');if(c)collect(c.dataset.collect);const cr=e.target.closest('[data-collect-recharge]');if(cr)collectServiceDue('recharge',cr.dataset.collectRecharge);const cb=e.target.closest('[data-collect-bank]');if(cb)collectServiceDue('banking',cb.dataset.collectBank);const sd=e.target.closest('[data-service-due-collect]');if(sd){const [type,id]=sd.dataset.serviceDueCollect.split(':');collectServiceDue(type,id);}const p=e.target.closest('[data-delete-purchase]');if(p&&confirm('এই ক্রয়টি মুছে ফেলবেন?')){db.purchases=db.purchases.filter(x=>x.id!==p.dataset.deletePurchase);save();toast('মুছে ফেলা হয়েছে')}const r=e.target.closest('[data-delete-recharge]');if(r&&confirm('এই রিচার্জটি মুছে ফেলবেন?')){db.recharge=db.recharge.filter(x=>x.id!==r.dataset.deleteRecharge);save();toast('মুছে ফেলা হয়েছে')}const b=e.target.closest('[data-delete-bank]');if(b&&confirm('এই লেনদেনটি মুছে ফেলবেন?')){db.banking=db.banking.filter(x=>x.id!==b.dataset.deleteBank);save();toast('মুছে ফেলা হয়েছে')}
 const dr=e.target.closest('[data-delete-number]');if(dr&&confirm('এই নম্বর হিসাবটি মুছে ফেলবেন?')){db.numbers=db.numbers.filter(x=>x.id!==dr.dataset.deleteNumber);save();toast('মুছে ফেলা হয়েছে')}
-const er=e.target.closest('[data-edit-recharge]');if(er){const x=db.recharge.find(v=>v.id===er.dataset.editRecharge);if(x)openModal('রিচার্জ সম্পাদনা',`<div class="form-grid">${field('তারিখ','date',x.date,'date','required')}${field('মোবাইল নম্বর','phone',x.phone||'','tel','required')}${selectField('অপারেটর','operator',['GP','Robi','Banglalink','Airtel','Teletalk'],x.operator)}${field('টাকার পরিমাণ','amount',x.amount,'number','required min="1"')}${field('পরিশোধ','paid',x.paid??x.amount,'number','required min="0"')}${selectField('ধরন','type',['সাধারণ','ইন্টারনেট','মিনিট','বান্ডেল'])}${selectField('মাধ্যম','method',['নগদ','বিকাশ','নগদ MFS','রকেট'])}</div>`,f=>{Object.assign(x,{date:f.get('date'),phone:f.get('phone'),operator:f.get('operator'),type:f.get('type'),method:f.get('method'),amount:+f.get('amount'),paid:+f.get('paid')});x.due=Math.max(0,x.amount-x.paid);save();toast('রিচার্জ আপডেট হয়েছে')})}
+const er=e.target.closest('[data-edit-recharge]');if(er){const x=db.recharge.find(v=>v.id===er.dataset.editRecharge);if(x)openModal('রিচার্জ সম্পাদনা',`<div class="form-grid">${field('তারিখ','date',x.date,'date','required')}${field('মোবাইল নম্বর','phone',x.phone||'','tel','required')}${selectField('অপারেটর','operator',['GP','Robi','Banglalink','Airtel','Teletalk'],x.operator)}${field('টাকার পরিমাণ','amount',x.amount,'number','required min="1"')}${field('পরিশোধ','paid',x.paid??x.amount,'number','required min="0"')}${selectField('ধরন','type',['সাধারণ','ইন্টারনেট','মিনিট','বান্ডেল'],x.type)}${selectField('মাধ্যম','method',['নগদ','বিকাশ','নগদ MFS','রকেট'],x.method)}</div>`,f=>{Object.assign(x,{date:f.get('date'),phone:f.get('phone'),operator:f.get('operator'),type:f.get('type'),method:f.get('method'),amount:+f.get('amount'),paid:+f.get('paid')});x.due=Math.max(0,x.amount-x.paid);save();toast('রিচার্জ আপডেট হয়েছে')})}
 const eb=e.target.closest('[data-edit-bank]');if(eb){const x=db.banking.find(v=>v.id===eb.dataset.editBank);if(x)openModal('ব্যাংকিং সম্পাদনা',`<div class="form-grid">${field('তারিখ','date',x.date||today(),'date','required')}${selectField('মাধ্যম','method',['বিকাশ','নগদ','রকেট','উপায়'],x.method)}${selectField('ধরন','type',['Cash In','Cash Out','Send Money','Payment'],x.type)}${field('নম্বর','phone',x.phone||'','tel')}${field('টাকার পরিমাণ','amount',x.amount,'number','required min="0"')}${field('পরিশোধ','paid',x.paid??x.amount,'number','required min="0"')}${field('চার্জ','charge',x.charge||0,'number','min="0"')}</div>`,f=>{Object.assign(x,{date:f.get('date'),method:f.get('method'),type:f.get('type'),phone:f.get('phone'),amount:+f.get('amount'),paid:+f.get('paid'),charge:+f.get('charge')});x.due=Math.max(0,x.amount-x.paid);save();toast('ব্যাংকিং আপডেট হয়েছে')})}
 const en=e.target.closest('[data-edit-number]');if(en){const x=db.numbers.find(v=>v.id===en.dataset.editNumber);if(x)openModal('নম্বর হিসাব সম্পাদনা',`<div class="form-grid">${field('তারিখ','date',x.date,'date','required')}${field('নাম','name',x.name||'','text','required')}${field('মোবাইল নম্বর','phone',x.phone||'','tel','required')}${field('বিবরণ','note',x.note||'','text')}${field('মোট টাকা','amount',x.amount,'number','required min="0"')}${field('পরিশোধ','paid',x.paid||0,'number','required min="0"')}</div>`,f=>{Object.assign(x,{date:f.get('date'),name:f.get('name'),phone:f.get('phone'),note:f.get('note'),amount:+f.get('amount'),paid:+f.get('paid')});x.due=Math.max(0,x.amount-x.paid);save();toast('নম্বর হিসাব আপডেট হয়েছে')})}
 const rr=e.target.closest('[data-recharge-receipt]');if(rr){const x=db.recharge.find(v=>v.id===rr.dataset.rechargeReceipt);if(x)serviceReceipt('মোবাইল রিচার্জ',x,'recharge')}const br=e.target.closest('[data-bank-receipt]');if(br){const x=db.banking.find(v=>v.id===br.dataset.bankReceipt);if(x)serviceReceipt('মোবাইল ব্যাংকিং',x,'banking')}const nr=e.target.closest('[data-number-receipt]');if(nr){const x=db.numbers.find(v=>v.id===nr.dataset.numberReceipt);if(x)numberReceipt(x)}const pr=e.target.closest('[data-edit-product]');if(pr){const x=db.products.find(p=>p.id===pr.dataset.editProduct);openModal('পণ্য সম্পাদনা',`<div class="form-grid">${field('পণ্যের নাম','name',x.name,'text','required')}${field('ক্যাটাগরি','cat',x.cat,'text','required')}${field('ক্রয় মূল্য','buy',x.buy,'number','required')}${field('বিক্রয় মূল্য','sell',x.sell,'number','required')}${field('স্টক','stock',x.stock,'number','required')}${field('কম স্টক সীমা','min',x.min,'number','required')}${field('আইকন','icon',x.icon||'📦')}</div>`,f=>{Object.assign(x,{name:f.get('name'),cat:f.get('cat'),buy:+f.get('buy'),sell:+f.get('sell'),stock:+f.get('stock'),min:+f.get('min'),icon:f.get('icon')});save();toast('পণ্য আপডেট হয়েছে')})}const rec=e.target.closest('[data-receipt]');if(rec){const x=db.sales.find(s=>s.id===rec.dataset.receipt);receipt(x)}});
@@ -189,6 +266,16 @@ document.getElementById('saveShop').onclick=()=>{db.shop={name:document.getEleme
 document.getElementById('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`mahmud-telecom-backup-${today()}.json`;a.click();URL.revokeObjectURL(a.href);toast('Backup ডাউনলোড হয়েছে')};
 document.getElementById('importInput').onchange=e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=()=>{try{db=JSON.parse(r.result);save();toast('Backup সফলভাবে Import হয়েছে')}catch{toast('Backup ফাইলটি সঠিক নয়')}};r.readAsText(file)};
 document.getElementById('resetData').onclick=()=>{if(confirm('সব হিসাব মুছে ডেমো ডাটায় ফিরিয়ে নিতে চান?')){db=structuredClone(stateDefault);save();toast('ডাটা রিসেট হয়েছে')}};
+function updateClock(){
+  const now=new Date();
+  const timeEl=document.getElementById('clockText');
+  const dateEl=document.getElementById('todayDate');
+  if(timeEl) timeEl.textContent=new Intl.DateTimeFormat('bn-BD',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true,timeZone:'Asia/Dhaka'}).format(now);
+  if(dateEl) dateEl.textContent=new Intl.DateTimeFormat('bn-BD',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'}).format(now);
+}
+updateClock();
+setInterval(updateClock,1000);
+
 function pageLabel(page){const labels={dashboard:'ড্যাশবোর্ড',numbers:'নম্বর হিসাব',sales:'বিক্রয়',purchases:'ক্রয় রিপোর্ট',products:'স্টক ও পণ্য',customers:'কাস্টমার',suppliers:'সাপ্লায়ার',dues:'বকেয়ার তালিকা',recharge:'মোবাইল রিচার্জ',banking:'মোবাইল ব্যাংকিং','service-dues':'সেবা বাকি',reports:'রিপোর্ট ও হিসাব',settings:'সেটিংস'};return labels[page]||'রিপোর্ট'}
 function printCurrentPage(){document.body.classList.add('printing');window.setTimeout(()=>window.print(),80)}
 function safeFileName(s){return String(s).replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'').toLowerCase()||'mahmud-telecom'}
@@ -455,4 +542,6 @@ function clearPageData(page){
 function addPageActions(){document.querySelectorAll('.page').forEach(page=>{let host=page.querySelector('.section-title');if(page.id==='page-dashboard')host=page.querySelector('.dashboard-header');if(!host)return;let actions=host.querySelector('.report-actions')||host.querySelector('.page-print-actions');if(!actions){actions=document.createElement('div');actions.className='page-print-actions';actions.innerHTML='<button type="button" class="outline-btn page-print-btn">🖨️ প্রিন্ট</button><button type="button" class="primary-btn page-png-btn">🖼️ PNG</button>';host.appendChild(actions)}else{actions.classList.add('page-print-actions');const pb=actions.querySelector('#printReportBtn');const nb=actions.querySelector('#pngReportBtn');if(pb)pb.classList.add('page-print-btn');if(nb)nb.classList.add('page-png-btn')}const pb=actions.querySelector('.page-print-btn');const nb=actions.querySelector('.page-png-btn');if(pb)pb.onclick=printCurrentPage;if(nb)nb.onclick=pngCurrentPage;const p=page.id.replace('page-','');if(!actions.querySelector('.page-clear-btn')&&['numbers','sales','purchases','products','customers','suppliers','recharge','banking'].includes(p)){const cb=document.createElement('button');cb.type='button';cb.className='danger-btn page-clear-btn';cb.textContent='🗑️ সব মুছুন';cb.onclick=()=>clearPageData(p);actions.appendChild(cb)}})}
 
 
-setTimeout(()=>{renderAll();addPageActions();initCloudSync();},0);
+setTimeout(()=>{renderAll();addPageActions();initCloudSync();updateClock();},0);
+window.addEventListener('online',()=>{showSyncStatus('Connecting…');pullCloud()});
+window.addEventListener('offline',()=>showSyncStatus('Offline',false));
