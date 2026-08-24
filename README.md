@@ -13,7 +13,7 @@ Final mobile banking save/delete and cloud synchronization repair.
 V18 Cloud Sync: base-aware merge preserves new saves and correctly propagates deletions across devices without resurrecting deleted records.
 
 
-## V19 Cloud Sync Fix
+## V20 Cloud Sync Fix
 - Added per-record mutation timestamps (`_mt`).
 - Added deletion tombstones (`_deleted`) so deleted transactions cannot return from another device.
 - Laptop and mobile changes are merged by mutation time.
