@@ -141,31 +141,27 @@ async function initCloudSync(){
   try{
     const remote=await cloudGet();
     if(remote?.state){
-      db=normaliseState(remote.state);
+      const merged=mergeStates(db,remote.state,cloudBaseSnapshot);
+      db=normaliseState(merged);
       localStorage.setItem(KEY,JSON.stringify(db));
       cloudBaseSnapshot=cloneState(db);
       localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
       cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();
-      renderAll();
+      try{renderAll()}catch(e){console.error('Render after cloud merge:',e)}
+      if(!same(db,remote.state))await cloudPut(db);
     }else{
       db=normaliseState(db);
-      const result=await cloudPut(db);
+      await cloudPut(db);
       cloudBaseSnapshot=cloneState(db);
       localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
       cloudUpdatedAt=Date.now();
     }
-    cloudSyncReady=true;
-    showSyncStatus('Cloud Sync');
-    clearInterval(cloudPullTimer);
-    cloudPullTimer=setInterval(pullCloud,5000);
+    cloudSyncReady=true;showSyncStatus('Cloud Sync');clearInterval(cloudPullTimer);cloudPullTimer=setInterval(pullCloud,5000);
   }catch(e){
-    console.warn('Cloud connection unavailable',e);
-    cloudSyncReady=true;
-    showSyncStatus('Local Mode',false);
-    clearInterval(cloudPullTimer);
-    cloudPullTimer=setInterval(pullCloud,8000);
+    console.warn('Cloud connection unavailable',e);cloudSyncReady=true;showSyncStatus('Local Mode',false);clearInterval(cloudPullTimer);cloudPullTimer=setInterval(pullCloud,8000);
   }
 }
+
 db=normaliseState(db);
 function save(){
   localStorage.setItem(KEY,JSON.stringify(db));
@@ -267,11 +263,11 @@ document.getElementById('exportBtn').onclick=()=>{const blob=new Blob([JSON.stri
 document.getElementById('importInput').onchange=e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=()=>{try{db=JSON.parse(r.result);save();toast('Backup সফলভাবে Import হয়েছে')}catch{toast('Backup ফাইলটি সঠিক নয়')}};r.readAsText(file)};
 document.getElementById('resetData').onclick=()=>{if(confirm('সব হিসাব মুছে ডেমো ডাটায় ফিরিয়ে নিতে চান?')){db=structuredClone(stateDefault);save();toast('ডাটা রিসেট হয়েছে')}};
 function updateClock(){
-  const now=new Date();
-  const timeEl=document.getElementById('clockText');
-  const dateEl=document.getElementById('todayDate');
-  if(timeEl) timeEl.textContent=new Intl.DateTimeFormat('bn-BD',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true,timeZone:'Asia/Dhaka'}).format(now);
-  if(dateEl) dateEl.textContent=new Intl.DateTimeFormat('bn-BD',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'}).format(now);
+  try{
+    const now=new Date(),timeEl=document.getElementById('clockText'),dateEl=document.getElementById('todayDate');
+    if(timeEl)timeEl.textContent=new Intl.DateTimeFormat('bn-BD',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true,timeZone:'Asia/Dhaka'}).format(now);
+    if(dateEl)dateEl.textContent=new Intl.DateTimeFormat('bn-BD',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'}).format(now);
+  }catch(e){const el=document.getElementById('clockText');if(el)el.textContent=new Date().toLocaleTimeString('bn-BD',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});}
 }
 updateClock();
 setInterval(updateClock,1000);
@@ -542,6 +538,6 @@ function clearPageData(page){
 function addPageActions(){document.querySelectorAll('.page').forEach(page=>{let host=page.querySelector('.section-title');if(page.id==='page-dashboard')host=page.querySelector('.dashboard-header');if(!host)return;let actions=host.querySelector('.report-actions')||host.querySelector('.page-print-actions');if(!actions){actions=document.createElement('div');actions.className='page-print-actions';actions.innerHTML='<button type="button" class="outline-btn page-print-btn">🖨️ প্রিন্ট</button><button type="button" class="primary-btn page-png-btn">🖼️ PNG</button>';host.appendChild(actions)}else{actions.classList.add('page-print-actions');const pb=actions.querySelector('#printReportBtn');const nb=actions.querySelector('#pngReportBtn');if(pb)pb.classList.add('page-print-btn');if(nb)nb.classList.add('page-png-btn')}const pb=actions.querySelector('.page-print-btn');const nb=actions.querySelector('.page-png-btn');if(pb)pb.onclick=printCurrentPage;if(nb)nb.onclick=pngCurrentPage;const p=page.id.replace('page-','');if(!actions.querySelector('.page-clear-btn')&&['numbers','sales','purchases','products','customers','suppliers','recharge','banking'].includes(p)){const cb=document.createElement('button');cb.type='button';cb.className='danger-btn page-clear-btn';cb.textContent='🗑️ সব মুছুন';cb.onclick=()=>clearPageData(p);actions.appendChild(cb)}})}
 
 
-setTimeout(()=>{renderAll();addPageActions();initCloudSync();updateClock();},0);
+setTimeout(()=>{updateClock();try{renderAll()}catch(e){console.error('Mahmud Telecom render error:',e)}addPageActions();initCloudSync();},0);
 window.addEventListener('online',()=>{showSyncStatus('Connecting…');pullCloud()});
 window.addEventListener('offline',()=>showSyncStatus('Offline',false));

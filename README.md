@@ -51,3 +51,9 @@ Mobile Banking and Mobile Recharge-এর রসিদে Print ও PNG অপ�
 - Added automatic retry when the Render service wakes up or the network comes back.
 - Updated the service-worker cache version to v12 and removed older Mahmud Telecom caches during activation.
 - The API now returns `updated_at` after a successful cloud save.
+
+
+## V13 Final fixes
+- Clock is initialized directly from index.html as well as app.js, so it cannot remain `--:--` due to a later rendering error.
+- Service worker is network-first for HTML/JS/CSS to prevent stale GitHub Pages code.
+- Cloud startup merges local and remote records instead of blindly replacing local data with the remote snapshot.
