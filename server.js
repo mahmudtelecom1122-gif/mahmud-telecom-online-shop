@@ -28,11 +28,41 @@ async function ensureTable(){
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
 }
+const arrays=['products','customers','suppliers','sales','purchases','recharge','banking','numbers'];
+const clone=x=>x&&typeof x==='object'?JSON.parse(JSON.stringify(x)):{};
+const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+function mergeArray(local=[],remote=[],base=[]){
+  const lm=new Map((Array.isArray(local)?local:[]).map(x=>[x.id,x]));
+  const rm=new Map((Array.isArray(remote)?remote:[]).map(x=>[x.id,x]));
+  const bm=new Map((Array.isArray(base)?base:[]).map(x=>[x.id,x]));
+  const ids=new Set([...lm.keys(),...rm.keys(),...bm.keys()]);
+  const out=[];
+  for(const id of ids){
+    const l=lm.get(id),r=rm.get(id),b=bm.get(id);
+    const lc=!same(l,b),rc=!same(r,b);
+    if(lc&&!rc){if(l!==undefined)out.push(l);}
+    else if(!lc&&rc){if(r!==undefined)out.push(r);}
+    else if(lc&&rc){if(same(l,r)){if(l!==undefined)out.push(l)}else if(l!==undefined){out.push(l)}}
+  }
+  return out;
+}
+function mergeState(local,remote,base){
+  local=clone(local);remote=clone(remote);base=clone(base);
+  const out={...remote};
+  for(const key of new Set([...Object.keys(local),...Object.keys(remote),...Object.keys(base)])){
+    if(arrays.includes(key)) out[key]=mergeArray(local[key],remote[key],base[key]);
+    else {
+      const lc=!same(local[key],base[key]),rc=!same(remote[key],base[key]);
+      out[key]=lc&&!rc?local[key]:(lc&&rc&&!same(local[key],remote[key])?local[key]:remote[key]);
+    }
+  }
+  return out;
+}
 
 app.get('/api/health', async (req,res)=>{
   if(!pool) return res.status(503).json({ok:false,error:'DATABASE_URL is not configured'});
   try{await ensureTable(); await pool.query('SELECT 1'); res.json({ok:true,database:true});}
-  catch(e){res.status(500).json({ok:false,error:'Database unavailable'});}
+  catch(e){console.error(e);res.status(500).json({ok:false,error:'Database unavailable'});}
 });
 
 app.get('/api/state', async (req,res)=>{
@@ -49,16 +79,20 @@ app.put('/api/state', async (req,res)=>{
   if(!pool) return res.status(503).json({ok:false,error:'Database unavailable'});
   const state=req.body?.state;
   if(!state || typeof state!=='object') return res.status(400).json({ok:false,error:'Invalid state'});
+  const base=req.body?.base_state && typeof req.body.base_state==='object' ? req.body.base_state : state;
+  const client=await pool.connect();
   try{
-    await ensureTable();
-    const r=await pool.query(`INSERT INTO mahmud_telecom_state(id,state,updated_at) VALUES(1,$1,NOW())
-      ON CONFLICT(id) DO UPDATE SET state=EXCLUDED.state, updated_at=NOW()
-      RETURNING updated_at`,[JSON.stringify(state)]);
-    res.json({ok:true,saved:true,updated_at:r.rows[0]?.updated_at||null});
-  }catch(e){console.error(e);res.status(500).json({ok:false,error:'Database unavailable'});}
+    await client.query('BEGIN');
+    await client.query(`CREATE TABLE IF NOT EXISTS mahmud_telecom_state (id INTEGER PRIMARY KEY CHECK (id=1), state JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    const r=await client.query('SELECT state FROM mahmud_telecom_state WHERE id=1 FOR UPDATE');
+    const merged=r.rows.length ? mergeState(state,r.rows[0].state,base) : clone(state);
+    const q=await client.query(`INSERT INTO mahmud_telecom_state(id,state,updated_at) VALUES(1,$1,NOW())
+      ON CONFLICT(id) DO UPDATE SET state=EXCLUDED.state, updated_at=NOW() RETURNING updated_at`,[JSON.stringify(merged)]);
+    await client.query('COMMIT');
+    res.json({ok:true,saved:true,updated_at:q.rows[0]?.updated_at||null,state:merged});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});console.error(e);res.status(500).json({ok:false,error:'Database unavailable'});}finally{client.release();}
 });
 
 app.use(express.static(__dirname));
 app.use((req,res)=>res.sendFile(path.join(__dirname,'index.html')));
-
-app.listen(port,()=>console.log(`Mahmud Telecom server listening on ${port}`));
+app.listen(port,()=>console.log(`Mahmud Telecom V16 server listening on ${port}`));

@@ -27,19 +27,14 @@ let cloudSyncReady=false;
 let cloudSyncBusy=false;
 let cloudSyncTimer=null;
 let cloudPullTimer=null;
-let cloudBaseSnapshot=(()=>{try{const x=JSON.parse(localStorage.getItem(KEY+'_cloudBase')||'null');return x&&typeof x==='object'?x:structuredClone(db)}catch(e){return structuredClone(db)}})();
+let cloudBaseSnapshot=(()=>{try{const x=JSON.parse(localStorage.getItem(KEY+'_cloudBase')||'null');return x&&typeof x==='object'?normaliseState(x):null}catch(e){return null}})();
 let cloudUpdatedAt=0;
-let localChangePending=false;
+let localChangePending=!cloudBaseSnapshot||!same(db,cloudBaseSnapshot);
 
 function apiBase(){return String(window.MT_API_BASE||'').replace(/\/$/,'')}
-function showSyncStatus(text,ok=true){
-  const el=document.querySelector('.online-badge');
-  if(el){el.textContent='● '+text;el.style.opacity=ok?'1':'.75';}
-}
+function showSyncStatus(text,ok=true){const el=document.querySelector('.online-badge');if(el){el.textContent='● '+text;el.style.opacity=ok?'1':'.75';}}
 function cloneState(s){return s&&typeof s==='object'?structuredClone(s):structuredClone(stateDefault)}
-function same(a,b){
-  try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){return false}
-}
+function same(a,b){try{return JSON.stringify(a)===JSON.stringify(b)}catch(e){return false}}
 function normaliseState(s){
   s=cloneState(s);
   const arrays=['products','customers','suppliers','sales','purchases','recharge','banking','numbers'];
@@ -50,92 +45,67 @@ function normaliseState(s){
   return s;
 }
 function mergeArray(local,remote,base){
-  const lm=new Map((local||[]).map(x=>[x.id, x]));
-  const rm=new Map((remote||[]).map(x=>[x.id, x]));
-  const bm=new Map((base||[]).map(x=>[x.id, x]));
+  const lm=new Map((local||[]).map(x=>[x.id,x])),rm=new Map((remote||[]).map(x=>[x.id,x])),bm=new Map((base||[]).map(x=>[x.id,x]));
   const ids=new Set([...lm.keys(),...rm.keys(),...bm.keys()]);
   const out=[];
   for(const id of ids){
     const l=lm.get(id),r=rm.get(id),b=bm.get(id);
-    const localChanged=!same(l,b);
-    const remoteChanged=!same(r,b);
-    let chosen;
-    if(localChanged && !remoteChanged) chosen=l;
-    else if(remoteChanged && !localChanged) chosen=r;
-    else if(localChanged && remoteChanged) chosen=same(l,r)?l:l; // local wins only on a true conflict
-    else chosen=l??r??b;
-    if(chosen!==undefined) out.push(chosen);
+    const lc=!same(l,b),rc=!same(r,b);
+    if(lc&&!rc){if(l!==undefined)out.push(l);}
+    else if(!lc&&rc){if(r!==undefined)out.push(r);}
+    else if(lc&&rc){if(same(l,r)){if(l!==undefined)out.push(l)}else if(l!==undefined){out.push(l)}}
   }
   return out;
 }
 function mergeStates(local,remote,base){
-  const a=normaliseState(local),r=normaliseState(remote),b=normaliseState(base||remote);
-  const merged={...r};
+  const a=normaliseState(local),r=normaliseState(remote),b=normaliseState(base||remote),merged={...r};
   for(const key of Object.keys({...a,...r,...b})){
-    if(Array.isArray(a[key])||Array.isArray(r[key])||Array.isArray(b[key])){
-      merged[key]=mergeArray(a[key],r[key],b[key]);
-    }else{
-      const lc=!same(a[key],b[key]),rc=!same(r[key],b[key]);
-      merged[key]=lc&&!rc?a[key]:lc&&rc&&!same(a[key],r[key])?a[key]:r[key];
-    }
+    if(Array.isArray(a[key])||Array.isArray(r[key])||Array.isArray(b[key])) merged[key]=mergeArray(a[key],r[key],b[key]);
+    else {const lc=!same(a[key],b[key]),rc=!same(r[key],b[key]);merged[key]=lc&&!rc?a[key]:(lc&&rc&&!same(a[key],r[key])?a[key]:r[key]);}
   }
   return normaliseState(merged);
 }
 async function cloudGet(){
-  const base=apiBase(); if(!base) return null;
-  const r=await fetch(base+'/api/state',{method:'GET',cache:'no-store'});
-  if(!r.ok) throw new Error('Cloud GET '+r.status);
-  const j=await r.json();
-  return {state:j&&j.state?normaliseState(j.state):null,updated_at:j?.updated_at||null};
+  const base=apiBase();if(!base)return null;
+  const r=await fetch(base+'/api/state',{method:'GET',cache:'no-store'});if(!r.ok)throw new Error('Cloud GET '+r.status);
+  const j=await r.json();return {state:j&&j.state?normaliseState(j.state):null,updated_at:j?.updated_at||null};
 }
-async function cloudPut(state){
-  const base=apiBase(); if(!base) return null;
-  const r=await fetch(base+'/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:normaliseState(state)})});
-  if(!r.ok) throw new Error('Cloud PUT '+r.status);
-  return await r.json();
+async function cloudPut(state,baseState){
+  const base=apiBase();if(!base)return null;
+  const r=await fetch(base+'/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:normaliseState(state),base_state:normaliseState(baseState||state)})});
+  if(!r.ok)throw new Error('Cloud PUT '+r.status);return await r.json();
+}
+function scheduleCloudSync(delay=250){
+  if(!apiBase()||!cloudSyncReady)return;
+  clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>syncPush(),delay);
 }
 async function syncPush(){
-  if(!apiBase()||!cloudSyncReady||cloudSyncBusy)return;
-  clearTimeout(cloudSyncTimer);
-  cloudSyncTimer=setTimeout(async()=>{
-    cloudSyncBusy=true;showSyncStatus('Syncing…');
-    try{
-      const remote=await cloudGet();
-      if(remote?.state){
-        const merged=mergeStates(db,remote.state,cloudBaseSnapshot);
-        db=merged;
-        localStorage.setItem(KEY,JSON.stringify(db));
-        renderAll();
-      }
-      const result=await cloudPut(db);
-      cloudBaseSnapshot=cloneState(db);
-      localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
-      localChangePending=false;
-      cloudUpdatedAt=Date.now();
-      showSyncStatus('Cloud Sync');
-    }catch(e){console.warn('Cloud sync failed',e);showSyncStatus('Local Mode',false);}
-    finally{cloudSyncBusy=false;}
-  },300);
+  if(!apiBase()||!cloudSyncReady)return;
+  if(cloudSyncBusy){scheduleCloudSync(500);return;}
+  cloudSyncBusy=true;showSyncStatus('Syncing…');
+  try{
+    const remote=await cloudGet();
+    if(remote?.state){
+      const merged=mergeStates(db,remote.state,cloudBaseSnapshot||remote.state);
+      db=merged;localStorage.setItem(KEY,JSON.stringify(db));renderAll();
+    }
+    const result=await cloudPut(db,cloudBaseSnapshot||db);
+    cloudBaseSnapshot=cloneState(db);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
+    localChangePending=false;cloudUpdatedAt=Date.now();showSyncStatus('Cloud Sync');
+  }catch(e){console.warn('Cloud sync failed',e);showSyncStatus('Local Mode',false);localChangePending=true;}
+  finally{cloudSyncBusy=false;if(localChangePending)scheduleCloudSync(1500);}
 }
 async function pullCloud(){
   if(!apiBase()||!cloudSyncReady||cloudSyncBusy||localChangePending)return;
   try{
-    const remote=await cloudGet();
-    if(!remote?.state){await cloudPut(db);cloudBaseSnapshot=cloneState(db);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));showSyncStatus('Cloud Sync');return;}
-    const merged=mergeStates(db,remote.state,cloudBaseSnapshot);
-    const changed=!same(merged,db);
-    const remoteChanged=!same(remote.state,cloudBaseSnapshot);
-    if(changed){
-      db=merged;
-      localStorage.setItem(KEY,JSON.stringify(db));
-      renderAll();
-    }
-    cloudBaseSnapshot=cloneState(merged);
-    localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
+    const remote=await cloudGet();if(!remote?.state)return;
+    const merged=mergeStates(db,remote.state,cloudBaseSnapshot||remote.state);
+    if(!same(merged,db)){db=merged;localStorage.setItem(KEY,JSON.stringify(db));renderAll();}
+    cloudBaseSnapshot=cloneState(merged);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
     cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();
-    if(!same(merged,remote.state)) await cloudPut(merged);
-    if(changed||remoteChanged) showSyncStatus('Cloud Sync');
-  }catch(e){console.warn('Cloud pull failed',e);showSyncStatus('Local Mode',false);}
+    if(!same(merged,remote.state)){localChangePending=true;scheduleCloudSync(250)}
+    else showSyncStatus('Cloud Sync');
+  }catch(e){console.warn('Cloud pull failed',e);showSyncStatus('Local Mode',false)}
 }
 async function initCloudSync(){
   if(!apiBase()){showSyncStatus('Local Mode',false);return;}
@@ -143,33 +113,32 @@ async function initCloudSync(){
   try{
     const remote=await cloudGet();
     if(remote?.state){
-      const merged=mergeStates(db,remote.state,cloudBaseSnapshot);
-      db=normaliseState(merged);
-      localStorage.setItem(KEY,JSON.stringify(db));
-      cloudBaseSnapshot=cloneState(db);
-      localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
-      cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();
-      try{renderAll()}catch(e){console.error('Render after cloud merge:',e)}
-      if(!same(db,remote.state))await cloudPut(db);
+      const base=cloudBaseSnapshot||remote.state;
+      const merged=mergeStates(db,remote.state,base);
+      db=merged;localStorage.setItem(KEY,JSON.stringify(db));cloudBaseSnapshot=cloneState(remote.state);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
+      cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();renderAll();
+      if(!same(db,remote.state)){localChangePending=true;await syncPush()} else localChangePending=false;
     }else{
-      db=normaliseState(db);
-      await cloudPut(db);
-      cloudBaseSnapshot=cloneState(db);
-      localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
-      cloudUpdatedAt=Date.now();
+      await cloudPut(db,db);cloudBaseSnapshot=cloneState(db);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));localChangePending=false;cloudUpdatedAt=Date.now();
     }
-    localChangePending=false;cloudSyncReady=true;showSyncStatus('Cloud Sync');clearInterval(cloudPullTimer);cloudPullTimer=setInterval(pullCloud,5000);
+    cloudSyncReady=true;showSyncStatus('Cloud Sync');clearInterval(cloudPullTimer);cloudPullTimer=setInterval(pullCloud,5000);
+    if(localChangePending)scheduleCloudSync(250);
   }catch(e){
-    console.warn('Cloud connection unavailable',e);cloudSyncReady=true;showSyncStatus('Local Mode',false);clearInterval(cloudPullTimer);cloudPullTimer=setInterval(pullCloud,8000);
+    console.warn('Cloud connection unavailable',e);cloudSyncReady=true;showSyncStatus('Local Mode',false);clearInterval(cloudPullTimer);cloudPullTimer=setInterval(pullCloud,8000);if(localChangePending)scheduleCloudSync(2000);
   }
 }
 
 db=normaliseState(db);
 function save(){
-  try{db=normaliseState(db);localChangePending=true;localStorage.setItem(KEY,JSON.stringify(db));localStorage.setItem(KEY+'_updated',String(Date.now()));}catch(e){console.error('Local save failed',e);toast('লোকাল হিসাব সংরক্ষণ করা যায়নি');return false;}
-  try{renderAll();}catch(e){console.error('Render after save failed',e);try{renderBanking();}catch(_){} }
-  try{syncPush();}catch(e){console.warn('Cloud queue failed',e);}
-  return true;
+  try{
+    db=normaliseState(db);
+    localChangePending=true;
+    localStorage.setItem(KEY,JSON.stringify(db));
+    localStorage.setItem(KEY+'_updated',String(Date.now()));
+    try{renderAll()}catch(e){console.error('Render after save failed',e);try{renderBanking()}catch(_){} }
+    scheduleCloudSync(250);
+    return true;
+  }catch(e){console.error('Local save failed',e);toast('লোকাল হিসাব সংরক্ষণ করা যায়নি');return false;}
 }
 
 function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>el.classList.remove('show'),2200)}
@@ -256,12 +225,17 @@ function saveBankingForm(form){
   }catch(err){console.error('Banking save error',err);toast('ব্যাংকিং হিসাব সংরক্ষণ করা যায়নি');}
   return false;
 }
-document.getElementById('newBankBtn').onclick=()=>{
-  openModal('মোবাইল ব্যাংকিং লেনদেন',`<div class="form-grid">${field('তারিখ','date',today(),'date','required')}${selectField('মাধ্যম','method',['বিকাশ','নগদ','রকেট','উপায়'],'বিকাশ')}${selectField('ধরন','type',['Cash In','Cash Out','Send Money','Payment'],'Cash Out')}${field('নম্বর','phone','','tel')}${field('টাকার পরিমাণ','amount','0','number','required min="0.01" step="0.01"')}${field('পরিশোধ','paid','0','number','required min="0" step="0.01"')}${field('চার্জ','charge','0','number','min="0" step="0.01"')}</div>`,()=>{});
-  const form=document.getElementById('dynamicForm');
-  const btn=form?.querySelector('button[type="submit"]');
-  if(btn){btn.type='button';btn.id='bankSaveBtn';btn.onclick=()=>saveBankingForm(form);}
-};
+document.getElementById('newBankBtn').onclick=()=>openModal('মোবাইল ব্যাংকিং লেনদেন',`<div class="form-grid">${field('তারিখ','date',today(),'date','required')}${selectField('মাধ্যম','method',['বিকাশ','নগদ','রকেট','উপায়'],'বিকাশ')}${selectField('ধরন','type',['Cash In','Cash Out','Send Money','Payment'],'Cash Out')}${field('নম্বর','phone','','tel')}${field('টাকার পরিমাণ','amount','0','number','required min="0.01" step="0.01"')}${field('পরিশোধ','paid','0','number','required min="0" step="0.01"')}${field('চার্জ','charge','0','number','min="0" step="0.01"')}</div>`,f=>{
+  try{
+    const amount=Number(f.get('amount')||0),paid=Number(f.get('paid')||0),charge=Number(f.get('charge')||0);
+    if(!f.get('date')||!f.get('method')||!f.get('type')){toast('তারিখ, মাধ্যম ও ধরন দিন');return;}
+    if(!Number.isFinite(amount)||amount<=0){toast('টাকার পরিমাণ সঠিকভাবে দিন');return;}
+    if(!Number.isFinite(paid)||paid<0||paid>amount){toast('পরিশোধের টাকা সঠিকভাবে দিন');return;}
+    if(!Number.isFinite(charge)||charge<0){toast('চার্জ সঠিকভাবে দিন');return;}
+    db.banking.push({id:uid('B'),date:String(f.get('date')),method:String(f.get('method')),type:String(f.get('type')),phone:String(f.get('phone')||'').trim(),amount,paid,due:Math.max(0,amount-paid),charge});
+    if(save()){document.getElementById('modal').classList.remove('show');toast('ব্যাংকিং লেনদেন সংরক্ষণ হয়েছে');}
+  }catch(err){console.error('Banking save error',err);toast('ব্যাংকিং হিসাব সংরক্ষণ করা যায়নি');}
+});
 document.getElementById('newNumberBtn').onclick=()=>openModal('নম্বর হিসাব',`<div class="form-grid">${field('তারিখ','date',today(),'date','required')}${field('নাম','name','','text','required')}${field('মোবাইল নম্বর','phone','','tel','required')}${field('বিবরণ','note','','text')}${field('মোট টাকা','amount','0','number','required min="0"')}${field('পরিশোধ','paid','0','number','required min="0"')}</div>`,f=>{const amount=+f.get('amount'),paid=+f.get('paid');db.numbers.push({id:uid('N'),date:f.get('date'),name:f.get('name'),phone:f.get('phone'),note:f.get('note'),amount,paid,due:Math.max(0,amount-paid)});save();toast('নম্বর হিসাব সংরক্ষণ হয়েছে')});
 document.addEventListener('click',e=>{const c=e.target.closest('[data-collect]');if(c)collect(c.dataset.collect);const cr=e.target.closest('[data-collect-recharge]');if(cr)collectServiceDue('recharge',cr.dataset.collectRecharge);const cb=e.target.closest('[data-collect-bank]');if(cb)collectServiceDue('banking',cb.dataset.collectBank);const sd=e.target.closest('[data-service-due-collect]');if(sd){const [type,id]=sd.dataset.serviceDueCollect.split(':');collectServiceDue(type,id);}const p=e.target.closest('[data-delete-purchase]');if(p&&confirm('এই ক্রয়টি মুছে ফেলবেন?')){db.purchases=db.purchases.filter(x=>x.id!==p.dataset.deletePurchase);save();toast('মুছে ফেলা হয়েছে')}const r=e.target.closest('[data-delete-recharge]');if(r&&confirm('এই রিচার্জটি মুছে ফেলবেন?')){db.recharge=db.recharge.filter(x=>x.id!==r.dataset.deleteRecharge);save();toast('মুছে ফেলা হয়েছে')}const b=e.target.closest('[data-delete-bank]');if(b){const id=b.dataset.deleteBank;if(id&&confirm('এই লেনদেনটি মুছে ফেলবেন?')){db.banking=db.banking.filter(x=>x.id!==id);if(save())toast('মোবাইল ব্যাংকিং হিসাব মুছে ফেলা হয়েছে')}}
 const dr=e.target.closest('[data-delete-number]');if(dr&&confirm('এই নম্বর হিসাবটি মুছে ফেলবেন?')){db.numbers=db.numbers.filter(x=>x.id!==dr.dataset.deleteNumber);save();toast('মুছে ফেলা হয়েছে')}
