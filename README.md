@@ -1,4 +1,4 @@
-# Mahmud Telecom V16
+# Mahmud Telecom V21
 
 Final mobile banking save/delete and cloud synchronization repair.
 
@@ -19,3 +19,10 @@ V18 Cloud Sync: base-aware merge preserves new saves and correctly propagates de
 - Laptop and mobile changes are merged by mutation time.
 - Mobile Banking Save/Edit/Delete uses the same durable local + cloud save path.
 - **Both GitHub Pages and Render must be deployed from this version.**
+
+
+## V21 Cloud Sync Fix
+- Fixed first-device/new-browser startup: when cloud data already exists, built-in demo/default browser data no longer overwrites the cloud copy.
+- A new mobile or laptop now pulls the existing PostgreSQL/Render state first.
+- Existing unsynced local data can still be merged when the browser contains real local changes.
+- Service-worker cache bumped to V21.

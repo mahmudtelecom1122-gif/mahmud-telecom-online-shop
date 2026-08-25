@@ -124,7 +124,18 @@ async function initCloudSync(){
   try{
     const remote=await cloudGet();
     if(remote?.state){
-      const base=cloudBaseSnapshot||remote.state;db=mergeStates(db,remote.state,base);localStorage.setItem(KEY,JSON.stringify(db));cloudBaseSnapshot=cloneState(remote.state);localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();renderAll();
+      // First visit on a new device: the remote cloud copy must be authoritative
+      // when the browser only contains the built-in demo/default data. Otherwise
+      // the default records look like local edits and can overwrite the cloud copy.
+      const hasCloudBase=!!cloudBaseSnapshot;
+      const localIsDefault=same(normaliseState(db),normaliseState(stateDefault));
+      const base=hasCloudBase?cloudBaseSnapshot:(localIsDefault?remote.state:stateDefault);
+      db=localIsDefault&&!hasCloudBase?normaliseState(remote.state):mergeStates(db,remote.state,base);
+      localStorage.setItem(KEY,JSON.stringify(db));
+      cloudBaseSnapshot=cloneState(db);
+      localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));
+      cloudUpdatedAt=Date.parse(remote.updated_at||'')||Date.now();
+      renderAll();
       if(!same(db,remote.state)){localChangePending=true;await syncPush()}else{localChangePending=false;lastSavedState=cloneState(db)}
     }else{
       const result=await cloudPut(db,db);if(result?.state)db=normaliseState(result.state);cloudBaseSnapshot=cloneState(db);lastSavedState=cloneState(db);localStorage.setItem(KEY,JSON.stringify(db));localStorage.setItem(KEY+'_cloudBase',JSON.stringify(cloudBaseSnapshot));localChangePending=false;cloudUpdatedAt=Date.now();
