@@ -53,38 +53,117 @@ function eventTime(state,key,id){
   const r=(state?.[key]||[]).find(x=>x.id===id);
   return Math.max(d,Number(r?._mt)||0);
 }
-function mergeArray(local,remote,base,key){
-  const lm=new Map((local||[]).map(x=>[x.id,x])),rm=new Map((remote||[]).map(x=>[x.id,x])),bm=new Map((base||[]).map(x=>[x.id,x]));
-  const ids=new Set([...lm.keys(),...rm.keys(),...bm.keys(),...Object.keys(local?._deleted?.[key]||{}),...Object.keys(remote?._deleted?.[key]||{}),...Object.keys(base?._deleted?.[key]||{})]);
-  const out=[]; const deleted={};
+function mergeArray(local,remote,base,key,localDeleted={},remoteDeleted={},baseDeleted={}){
+  const lm=new Map((local||[]).map(x=>[x.id,x]));
+  const rm=new Map((remote||[]).map(x=>[x.id,x]));
+  const bm=new Map((base||[]).map(x=>[x.id,x]));
+
+  const ids=new Set([
+    ...lm.keys(),
+    ...rm.keys(),
+    ...bm.keys(),
+    ...Object.keys(localDeleted||{}),
+    ...Object.keys(remoteDeleted||{}),
+    ...Object.keys(baseDeleted||{})
+  ]);
+
+  const out=[];
+  const deleted={};
+
   for(const id of ids){
-    const lt=eventTime(local,key,id),rt=eventTime(remote,key,id),bt=eventTime(base,key,id);
-    const l=lm.get(id),r=rm.get(id),b=bm.get(id);
-    let winner='remote';
-    if(lt>rt)winner='local';
-    else if(rt>lt)winner='remote';
-    else if(l&&r&&recordSame(l,r))winner='same';
-    else {
-      const lc=!recordSame(l,b)||(lt!==bt),rc=!recordSame(r,b)||(rt!==bt);
-      if(lc&&!rc)winner='local'; else if(!lc&&rc)winner='remote'; else if(lc&&rc)winner='local'; else winner='remote';
+    const lt=eventTime(local,key,id);
+    const rt=eventTime(remote,key,id);
+    const bt=eventTime(base,key,id);
+
+    const l=lm.get(id);
+    const r=rm.get(id);
+    const b=bm.get(id);
+
+    const ld=Number(localDeleted?.[id]||0);
+    const rd=Number(remoteDeleted?.[id]||0);
+    const bd=Number(baseDeleted?.[id]||0);
+
+    // A deletion newer than the existing record wins.
+    const localDeletedWins=ld>Math.max(rt,bt);
+    const remoteDeletedWins=rd>Math.max(lt,bt);
+
+    if(localDeletedWins && ld>=rd){
+      deleted[id]=ld;
+      continue;
     }
+
+    if(remoteDeletedWins && rd>=ld){
+      deleted[id]=rd;
+      continue;
+    }
+
+    let winner='remote';
+
+    if(lt>rt) winner='local';
+    else if(rt>lt) winner='remote';
+    else if(l&&r&&recordSame(l,r)) winner='same';
+    else{
+      const lc=!recordSame(l,b)||(lt!==bt);
+      const rc=!recordSame(r,b)||(rt!==bt);
+
+      if(lc&&!rc) winner='local';
+      else if(!lc&&rc) winner='remote';
+      else if(lc&&rc) winner='local';
+      else winner='remote';
+    }
+
     if(winner==='local'){
-      if(local?._deleted?.[key]?.[id]){deleted[id]=Number(local._deleted[key][id]);continue;}
-      if(l)out.push(l); else if(r)out.push(r);
+      if(l) out.push(l);
+      else if(r) out.push(r);
     }else if(winner==='remote'){
-      if(remote?._deleted?.[key]?.[id]){deleted[id]=Number(remote._deleted[key][id]);continue;}
-      if(r)out.push(r); else if(l)out.push(l);
-    }else if(l)out.push(l);
+      if(r) out.push(r);
+      else if(l) out.push(l);
+    }else if(l){
+      out.push(l);
+    }
   }
+
   return {items:out,deleted};
 }
+}
 function mergeStates(local,remote,base){
-  const a=normaliseState(local),r=normaliseState(remote),b=normaliseState(base||remote),merged={...r,_deleted:{}};
+  const a=normaliseState(local);
+  const r=normaliseState(remote);
+  const b=normaliseState(base||remote);
+  const merged={...r,_deleted:{}};
+
   const arrays=['products','customers','suppliers','sales','purchases','recharge','banking','numbers'];
-  for(const key of arrays){const m=mergeArray(a[key],r[key],b[key],key);merged[key]=m.items;merged._deleted[key]=m.deleted;}
-  if(!same(a.shop,b.shop)&&same(r.shop,b.shop))merged.shop=a.shop;
-  else if(!same(a.shop,b.shop)&&!same(r.shop,b.shop)&&!same(a.shop,r.shop))merged.shop=a.shop;
+
+  for(const key of arrays){
+    const localDeleted=a._deleted?.[key]||{};
+    const remoteDeleted=r._deleted?.[key]||{};
+    const baseDeleted=b._deleted?.[key]||{};
+
+    const localCopy={...a,_deleted:{[key]:localDeleted}};
+    const remoteCopy={...r,_deleted:{[key]:remoteDeleted}};
+    const baseCopy={...b,_deleted:{[key]:baseDeleted}};
+
+    const m=mergeArray(
+      local[key],
+      remote[key],
+      base[key],
+      key,
+      localDeleted,
+      remoteDeleted,
+      baseDeleted
+    );
+
+    merged[key]=m.items;
+    merged._deleted[key]=m.deleted;
+  }
+
+  if(!same(a.shop,b.shop)&&same(r.shop,b.shop))
+    merged.shop=a.shop;
+  else if(!same(a.shop,b.shop)&&!same(r.shop,b.shop)&&!same(a.shop,r.shop))
+    merged.shop=a.shop;
+
   return normaliseState(merged);
+}
 }
 async function cloudGet(){
   const base=apiBase();if(!base)return null;
