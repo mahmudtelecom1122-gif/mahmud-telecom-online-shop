@@ -1,201 +1,758 @@
+// =====================================================
+// Mahmud Telecom V8
+// Suppliers Module
+// Fixed Version
+// =====================================================
 
-/* Mahmud Telecom — shared data/API layer */
-(() => {
-  const KEY = "mahmud_telecom_shop_final_v3";
-  const CART_KEY = "mt_cart";
-  let apiState = "unknown"; // unknown | online | local
+"use strict";
 
-  const defaults = {
-    products: [
-      {id:1,name:"মোবাইল ব্যাক কভার",category:"মোবাইল এক্সেসরিজ",price:120,oldPrice:0,stock:20,image:"",active:true},
-      {id:2,name:"USB ডাটা কেবল",category:"চার্জার ও কেবল",price:150,oldPrice:0,stock:25,image:"",active:true},
-      {id:3,name:"ফাস্ট চার্জার (অ্যাডাপ্টার)",category:"চার্জার ও কেবল",price:350,oldPrice:0,stock:15,image:"",active:true},
-      {id:4,name:"সেলফি স্টিক",category:"মোবাইল এক্সেসরিজ",price:250,oldPrice:0,stock:10,image:"",active:true},
-      {id:5,name:"ব্লুটুথ হেডফোন",category:"অডিও",price:650,oldPrice:0,stock:12,image:"",active:true},
-      {id:6,name:"হ্যান্ডসফ্রি ইয়ারফোন",category:"অডিও",price:180,oldPrice:0,stock:30,image:"",active:true},
-      {id:7,name:"ব্লুটুথ স্পিকার",category:"অডিও",price:900,oldPrice:0,stock:8,image:"",active:true},
-      {id:8,name:"টেম্পার্ড গ্লাস প্রোটেক্টর",category:"কভার ও গ্লাস",price:100,oldPrice:0,stock:30,image:"",active:true},
-      {id:9,name:"প্রিমিয়াম মোবাইল কভার",category:"কভার ও গ্লাস",price:180,oldPrice:0,stock:18,image:"",active:true},
-      {id:10,name:"স্ক্রিন গার্ড (ম্যাট)",category:"কভার ও গ্লাস",price:120,oldPrice:0,stock:20,image:"",active:true},
-      {id:11,name:"মাল্টি প্লাগ সকেট",category:"ইলেকট্রিক",price:450,oldPrice:0,stock:10,image:"",active:true},
-      {id:12,name:"এলইডি বাল্ব",category:"ইলেকট্রিক",price:130,oldPrice:0,stock:25,image:"",active:true},
-      {id:13,name:"এক্সটেনশন বোর্ড",category:"ইলেকট্রিক",price:500,oldPrice:0,stock:8,image:"",active:true},
-      {id:14,name:"পাসপোর্ট সাইজ ছবি",category:"ফটোগ্রাফি",price:50,oldPrice:0,stock:99,image:"",active:true},
-      {id:15,name:"ছবি এডিটিং সার্ভিস",category:"ফটোগ্রাফি",price:80,oldPrice:0,stock:99,image:"",active:true},
-      {id:16,name:"স্টুডিও ফটোগ্রাফি (ঘণ্টা)",category:"ফটোগ্রাফি",price:500,oldPrice:0,stock:99,image:"",active:true}
-    ],
-    orders: [],
-    settings: {shopName:"মাহমুদ টেলিকম",phone:"01846-655270",whatsapp:"8801846655270",deliveryInside:60,deliveryOutside:120,cod:true}
-  };
+// ======================================
+// Local Storage
+// ======================================
 
-  const clone = o => JSON.parse(JSON.stringify(o));
-  const base = () => String(window.MT_API_BASE || "").replace(/\/+$/,"");
-  const apiUrl = path => `${base()}${path}`;
-  const localGet = () => {
+let suppliers = (() => {
     try {
-      const d = JSON.parse(localStorage.getItem(KEY) || "null");
-      if (d) return d;
-    } catch (_) {}
-    const d = clone(defaults);
-    localStorage.setItem(KEY, JSON.stringify(d));
-    return d;
-  };
-  const localSave = d => localStorage.setItem(KEY, JSON.stringify(d));
+        const raw = JSON.parse(localStorage.getItem("suppliers") || "[]");
 
-  async function raw(path, options = {}) {
-    const headers = new Headers(options.headers || {});
-    if (options.body && !headers.has("Content-Type")) headers.set("Content-Type","application/json");
-    const key = sessionStorage.getItem("mt_admin_key");
-    if (key) headers.set("x-admin-key", key);
-    const res = await fetch(apiUrl(path), {...options, headers});
-    let data = {};
-    try { data = await res.json(); } catch (_) {}
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-    return data;
-  }
+        if (Array.isArray(raw)) return raw;
+        if (raw && Array.isArray(raw.data)) return raw.data;
+        if (raw && Array.isArray(raw.items)) return raw.items;
+        if (raw && Array.isArray(raw.list)) return raw.list;
 
-  async function detectApi() {
-    if (apiState !== "unknown") return apiState === "online";
-    try {
-      const r = await fetch(apiUrl("/api/health"), {cache:"no-store"});
-      apiState = r.ok ? "online" : "local";
-    } catch (_) {
-      apiState = "local";
+    } catch (e) {
+        console.error("Supplier data read error:", e);
     }
-    return apiState === "online";
-  }
 
-  const money = n => "৳ " + Number(n || 0).toLocaleString("bn-BD");
-  const escapeHtml = s => String(s ?? "").replace(/[&<>"']/g, m => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-  }[m]));
-  const next = a => a.length ? Math.max(...a.map(x => Number(x.id)||0)) + 1 : 1;
-  const orderNo = () => "MT-" + new Date().getFullYear() + "-" + String(Date.now()).slice(-6);
-
-  async function getProducts(admin=false) {
-    if (await detectApi()) {
-      try { return await raw(admin ? "/api/products/admin" : "/api/products"); }
-      catch (e) { if (admin) throw e; }
-    }
-    return localGet().products.filter(x => !admin ? x.active : true);
-  }
-  async function getSettings() {
-    if (await detectApi()) {
-      try { return await raw("/api/settings"); } catch (_) {}
-    }
-    return localGet().settings;
-  }
-  async function getOrders() {
-    if (await detectApi()) {
-      try { return await raw("/api/orders"); } catch (e) { throw e; }
-    }
-    return localGet().orders.slice().reverse();
-  }
-  async function createProduct(obj) {
-    if (await detectApi()) return raw("/api/products",{method:"POST",body:JSON.stringify(obj)});
-    const d=localGet(); obj={...obj,id:next(d.products)}; d.products.push(obj); localSave(d); return obj;
-  }
-  async function updateProduct(id,obj) {
-    if (await detectApi()) return raw(`/api/products/${id}`,{method:"PUT",body:JSON.stringify(obj)});
-    const d=localGet(); d.products=d.products.map(x=>x.id===id?{...obj,id}:x); localSave(d); return obj;
-  }
-  async function deleteProduct(id) {
-    if (await detectApi()) return raw(`/api/products/${id}`,{method:"DELETE"});
-    const d=localGet(); d.products=d.products.filter(x=>x.id!==id); localSave(d); return {ok:true};
-  }
-  async function saveSettings(obj) {
-    if (await detectApi()) return raw("/api/settings",{method:"PUT",body:JSON.stringify(obj)});
-    const d=localGet(); d.settings=obj; localSave(d); return obj;
-  }
-  async function createOrder(payload) {
-    if (await detectApi()) return raw("/api/orders",{method:"POST",body:JSON.stringify(payload)});
-    const d=localGet();
-    const no=orderNo();
-    const subtotal=payload.items.reduce((s,i)=>s+Number(i.price)*Number(i.qty),0);
-    const dc=payload.deliveryZone==="outside"?Number(d.settings.deliveryOutside):Number(d.settings.deliveryInside);
-    const order={id:Date.now(),orderNo:no,date:new Date().toLocaleString("bn-BD"),customer:payload.customer,items:payload.items,total:subtotal,deliveryCharge:dc,grandTotal:subtotal+dc,payment:payload.payment,note:payload.note||"",status:"New"};
-    d.orders.push(order);
-    d.products=d.products.map(p=>{const i=payload.items.find(x=>Number(x.id)===Number(p.id)); return i?{...p,stock:Number(p.stock)-Number(i.qty)}:p});
-    localSave(d);
-    return {orderNo:no,subtotal,deliveryCharge:dc,grandTotal:subtotal+dc};
-  }
-  async function updateOrderStatus(id,status) {
-    if (await detectApi()) return raw(`/api/orders/${id}/status`,{method:"PATCH",body:JSON.stringify({status})});
-    const d=localGet(); const x=d.orders.find(o=>Number(o.id)===Number(id)); if(x)x.status=status; localSave(d); return x||{};
-  }
-  async function deleteOrder(id) {
-    if (await detectApi()) return raw(`/api/orders/${id}`,{method:"DELETE"});
-    const d=localGet(); d.orders=d.orders.filter(o=>Number(o.id)!==Number(id)); localSave(d); return {ok:true};
-  }
-
-  async function requireAdminKey() {
-    if (!(await detectApi())) return true;
-    const key=sessionStorage.getItem("mt_admin_key") || "";
-    if (!key) return false;
-    try { await raw("/api/products/admin"); return true; }
-    catch (_) { sessionStorage.removeItem("mt_admin_key"); return false; }
-  }
-
-  function adminShell(active) {
-    return `<header class="admin-head">
-      <a href="index.html" class="brand"><img src="images/logo.png" alt="Logo"><span><b>মাহমুদ টেলিকম</b><small>Online Shop Admin</small></span></a>
-      <div class="admin-head-actions"><button class="site-btn" onclick="MT.logout()">🔒 Logout</button><a class="site-btn" href="index.html">🛍️ Shop দেখুন</a></div>
-    </header>
-    <nav class="admin-nav">${[
-      ["admin.html","ড্যাশবোর্ড"],["admin-products.html","পণ্য"],["admin-orders.html","অর্ডার"],["admin-settings.html","সেটিংস"]
-    ].map(x=>`<a class="${active===x[0]?"active":""}" href="${x[0]}">${x[1]}</a>`).join("")}</nav>`;
-  }
-
-  async function openCheckout() {
-    const products = await getProducts(false);
-    let cart = {};
-    try { cart = JSON.parse(localStorage.getItem(CART_KEY) || "{}"); } catch (_) {}
-    const items = Object.entries(cart).map(([id,qty])=>{
-      const p=products.find(x=>Number(x.id)===Number(id));
-      return p ? {id:p.id,name:p.name,price:Number(p.price),qty:Number(qty)} : null;
-    }).filter(Boolean).filter(x=>x.qty>0);
-    if (!items.length) { alert("আপনার কার্ট খালি।"); return; }
-
-    const settings=await getSettings();
-    const subtotal=items.reduce((s,i)=>s+i.price*i.qty,0);
-    const m=document.createElement("div");
-    m.id="mtCheckout"; m.className="mt-checkout-overlay";
-    m.innerHTML=`<div class="mt-checkout-box">
-      <h2>অর্ডার কনফার্ম করুন</h2><p>পণ্যের মোট: <b>${money(subtotal)}</b></p>
-      <form id="mtOrderForm">
-        <input name="name" placeholder="আপনার নাম" required>
-        <input name="phone" placeholder="মোবাইল নম্বর" required>
-        <input name="address" placeholder="সম্পূর্ণ ঠিকানা" required>
-        <input name="area" placeholder="এলাকা / থানা / উপজেলা" required>
-        <select name="delivery"><option value="inside">শহরের ভিতরে — ${money(settings.deliveryInside)}</option><option value="outside">শহরের বাইরে — ${money(settings.deliveryOutside)}</option></select>
-        <select name="payment">${settings.cod?'<option>Cash on Delivery</option>':""}<option>WhatsApp Payment</option></select>
-        <textarea name="note" placeholder="অতিরিক্ত নির্দেশনা (ঐচ্ছিক)"></textarea>
-        <div class="mt-checkout-actions"><button class="btn btn-primary" type="submit">অর্ডার পাঠান</button><button class="btn btn-outline" type="button" id="mtClose">বাতিল</button></div>
-      </form>
-    </div>`;
-    document.body.appendChild(m);
-    document.getElementById("mtClose").onclick=()=>m.remove();
-    document.getElementById("mtOrderForm").onsubmit=async e=>{
-      e.preventDefault();
-      const f=new FormData(e.target);
-      const payload={customer:{name:f.get("name"),phone:f.get("phone"),address:f.get("address"),area:f.get("area")},items,deliveryZone:f.get("delivery"),payment:f.get("payment"),note:f.get("note")||""};
-      const btn=e.target.querySelector("button[type=submit]"); btn.disabled=true; btn.textContent="পাঠানো হচ্ছে...";
-      try{
-        const result=await createOrder(payload);
-        localStorage.removeItem(CART_KEY);
-        const lines=[`*${settings.shopName} - New Order*`,`Order: ${result.orderNo}`,`Name: ${payload.customer.name}`,`Phone: ${payload.customer.phone}`,`Address: ${payload.customer.address}, ${payload.customer.area}`,"Items:",...items.map(i=>`${i.name} x ${i.qty} = ${i.price*i.qty} Tk`),`Subtotal: ${result.subtotal} Tk`,`Delivery: ${result.deliveryCharge} Tk`,`Total: ${result.grandTotal} Tk`,`Payment: ${payload.payment}`];
-        const url="https://wa.me/"+settings.whatsapp+"?text="+encodeURIComponent(lines.join("\n"));
-        location.href=url;
-      }catch(err){ alert("অর্ডার পাঠানো যায়নি: "+err.message); btn.disabled=false; btn.textContent="অর্ডার পাঠান"; }
-    };
-  }
-
-  window.MT = {
-    key:KEY, CART_KEY, defaults,
-    get:localGet, save:localSave, money, escape:escapeHtml, next, orderNo,
-    detectApi, getProducts, getSettings, getOrders, createProduct, updateProduct, deleteProduct,
-    saveSettings, createOrder, updateOrderStatus, deleteOrder, requireAdminKey, adminShell,
-    openCheckout, logout(){sessionStorage.removeItem("mt_admin_key");location.reload();}
-  };
-  window.MT_OPEN_CHECKOUT = openCheckout;
+    return [];
 })();
+
+let editIndex = -1;
+
+// ======================================
+// Elements
+// ======================================
+
+const supplierForm =
+    document.getElementById("supplierForm");
+
+const supplierTableBody =
+    document.getElementById("supplierTableBody");
+
+const totalSuppliers =
+    document.getElementById("totalSuppliers");
+
+const searchSupplier =
+    document.getElementById("searchSupplier");
+
+// ======================================
+// Save Suppliers
+// ======================================
+
+function saveSuppliers() {
+
+    try {
+
+        localStorage.setItem(
+            "suppliers",
+            JSON.stringify(suppliers)
+        );
+
+    } catch (e) {
+
+        console.error("Supplier save error:", e);
+
+        alert("❌ Supplier সংরক্ষণ করা যায়নি।");
+
+    }
+}
+
+// ======================================
+// Load Suppliers
+// ======================================
+
+function loadSuppliers(keyword = "") {
+
+    if (!supplierTableBody) return;
+
+    supplierTableBody.innerHTML = "";
+
+    keyword = String(keyword || "")
+        .toLowerCase()
+        .trim();
+
+    const list = suppliers.filter(item => {
+
+        const company =
+            String(
+                item?.company ??
+                item?.companyName ??
+                ""
+            ).toLowerCase();
+
+        const name =
+            String(
+                item?.name ??
+                item?.contactPerson ??
+                item?.supplierName ??
+                ""
+            ).toLowerCase();
+
+        const mobile =
+            String(
+                item?.mobile ??
+                item?.phone ??
+                ""
+            );
+
+        return (
+            company.includes(keyword) ||
+            name.includes(keyword) ||
+            mobile.includes(keyword)
+        );
+
+    });
+
+    // ==================================
+    // No Supplier
+    // ==================================
+
+    if (list.length === 0) {
+
+        supplierTableBody.innerHTML = `
+
+        <tr>
+
+            <td
+                colspan="6"
+                style="
+                    text-align:center;
+                    padding:25px;
+                    color:#777;
+                "
+            >
+                কোনো Supplier পাওয়া যায়নি
+            </td>
+
+        </tr>
+
+        `;
+
+        if (totalSuppliers) {
+            totalSuppliers.textContent = "Total: 0";
+        }
+
+        return;
+    }
+
+    // ==================================
+    // Supplier Rows
+    // ==================================
+
+    list.forEach((supplier) => {
+
+        const realIndex =
+            suppliers.indexOf(supplier);
+
+        supplierTableBody.innerHTML += `
+
+        <tr>
+
+            <td>
+                ${realIndex + 1}
+            </td>
+
+            <td>
+                ${escapeHTML(
+                    supplier.company ??
+                    supplier.companyName ??
+                    ""
+                )}
+            </td>
+
+            <td>
+                ${escapeHTML(
+                    supplier.name ??
+                    supplier.contactPerson ??
+                    supplier.supplierName ??
+                    ""
+                )}
+            </td>
+
+            <td>
+                ${escapeHTML(
+                    supplier.mobile ??
+                    supplier.phone ??
+                    ""
+                )}
+            </td>
+
+            <td>
+                ৳ ${Number(
+                    supplier.due || 0
+                ).toLocaleString("bn-BD")}
+            </td>
+
+            <td>
+
+                <button
+                    class="btn-edit"
+                    type="button"
+                    onclick="editSupplier(${realIndex})"
+                    title="Edit Supplier"
+                >
+                    ✏️
+                </button>
+
+                <button
+                    class="btn-delete"
+                    type="button"
+                    onclick="deleteSupplier(${realIndex})"
+                    title="Delete Supplier"
+                >
+                    🗑️
+                </button>
+
+            </td>
+
+        </tr>
+
+        `;
+
+    });
+
+    if (totalSuppliers) {
+
+        totalSuppliers.textContent =
+            "Total: " + list.length;
+
+    }
+}
+
+// ======================================
+// HTML Escape
+// ======================================
+
+function escapeHTML(value) {
+
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+}
+
+// ======================================
+// Add / Update Supplier
+// ======================================
+
+if (supplierForm) {
+
+    supplierForm.addEventListener(
+        "submit",
+        function (e) {
+
+            e.preventDefault();
+
+            const companyInput =
+                document.getElementById(
+                    "supplierCompany"
+                );
+
+            const nameInput =
+                document.getElementById(
+                    "supplierName"
+                );
+
+            const mobileInput =
+                document.getElementById(
+                    "supplierMobile"
+                );
+
+            const emailInput =
+                document.getElementById(
+                    "supplierEmail"
+                );
+
+            const addressInput =
+                document.getElementById(
+                    "supplierAddress"
+                );
+
+            const dueInput =
+                document.getElementById(
+                    "supplierDue"
+                );
+
+            const noteInput =
+                document.getElementById(
+                    "supplierNote"
+                );
+
+            // ==========================
+            // Check Elements
+            // ==========================
+
+            if (
+                !companyInput ||
+                !nameInput ||
+                !mobileInput
+            ) {
+
+                alert(
+                    "❌ Supplier form-এর প্রয়োজনীয় field পাওয়া যায়নি।"
+                );
+
+                return;
+            }
+
+            // ==========================
+            // Supplier Object
+            // ==========================
+
+            const supplier = {
+
+                company:
+                    companyInput.value
+                        .trim(),
+
+                name:
+                    nameInput.value
+                        .trim(),
+
+                mobile:
+                    mobileInput.value
+                        .trim(),
+
+                email:
+                    emailInput
+                        ? emailInput.value.trim()
+                        : "",
+
+                address:
+                    addressInput
+                        ? addressInput.value.trim()
+                        : "",
+
+                due:
+                    dueInput
+                        ? Number(
+                            dueInput.value
+                        ) || 0
+                        : 0,
+
+                note:
+                    noteInput
+                        ? noteInput.value.trim()
+                        : "",
+
+                createdAt:
+                    new Date()
+                        .toLocaleString()
+
+            };
+
+            // ==========================
+            // Required Check
+            // ==========================
+
+            if (
+                supplier.company === "" ||
+                supplier.name === "" ||
+                supplier.mobile === ""
+            ) {
+
+                alert(
+                    "⚠️ Company, Contact Person এবং Mobile লিখুন"
+                );
+
+                return;
+            }
+
+            // ==========================
+            // Duplicate Mobile Check
+            // ==========================
+
+            const duplicate =
+                suppliers.find(
+                    (item, index) => {
+
+                        const oldMobile =
+                            String(
+                                item?.mobile ??
+                                item?.phone ??
+                                ""
+                            ).trim();
+
+                        return (
+                            oldMobile ===
+                            supplier.mobile &&
+                            index !== editIndex
+                        );
+
+                    }
+                );
+
+            if (duplicate) {
+
+                alert(
+                    "❌ এই মোবাইল নম্বর ইতিমধ্যে ব্যবহার করা হয়েছে"
+                );
+
+                return;
+            }
+
+            // ==========================
+            // Add / Update
+            // ==========================
+
+            if (editIndex === -1) {
+
+                suppliers.push(
+                    supplier
+                );
+
+                alert(
+                    "✅ Supplier Successfully Added"
+                );
+
+            } else {
+
+                suppliers[editIndex] =
+                    supplier;
+
+                alert(
+                    "✅ Supplier Successfully Updated"
+                );
+
+                editIndex = -1;
+            }
+
+            // ==========================
+            // Save + Reload
+            // ==========================
+
+            saveSuppliers();
+
+            loadSuppliers();
+
+            // ==========================
+            // Reset Form
+            // ==========================
+
+            supplierForm.reset();
+
+            if (dueInput) {
+                dueInput.value = 0;
+            }
+
+        }
+    );
+
+}
+
+// ======================================
+// Edit Supplier
+// ======================================
+
+function editSupplier(index) {
+
+    const supplier =
+        suppliers[index];
+
+    if (!supplier) {
+
+        alert(
+            "❌ Supplier পাওয়া যায়নি।"
+        );
+
+        return;
+    }
+
+    const company =
+        document.getElementById(
+            "supplierCompany"
+        );
+
+    const name =
+        document.getElementById(
+            "supplierName"
+        );
+
+    const mobile =
+        document.getElementById(
+            "supplierMobile"
+        );
+
+    const email =
+        document.getElementById(
+            "supplierEmail"
+        );
+
+    const address =
+        document.getElementById(
+            "supplierAddress"
+        );
+
+    const due =
+        document.getElementById(
+            "supplierDue"
+        );
+
+    const note =
+        document.getElementById(
+            "supplierNote"
+        );
+
+    if (company) {
+
+        company.value =
+            supplier.company ??
+            supplier.companyName ??
+            "";
+
+    }
+
+    if (name) {
+
+        name.value =
+            supplier.name ??
+            supplier.contactPerson ??
+            supplier.supplierName ??
+            "";
+
+    }
+
+    if (mobile) {
+
+        mobile.value =
+            supplier.mobile ??
+            supplier.phone ??
+            "";
+
+    }
+
+    if (email) {
+
+        email.value =
+            supplier.email || "";
+
+    }
+
+    if (address) {
+
+        address.value =
+            supplier.address || "";
+
+    }
+
+    if (due) {
+
+        due.value =
+            supplier.due || 0;
+
+    }
+
+    if (note) {
+
+        note.value =
+            supplier.note || "";
+
+    }
+
+    editIndex = index;
+
+    // Scroll to form
+
+    window.scrollTo({
+
+        top: 0,
+
+        behavior: "smooth"
+
+    });
+
+}
+
+// ======================================
+// Delete Supplier
+// ======================================
+
+function deleteSupplier(index) {
+
+    const supplier =
+        suppliers[index];
+
+    if (!supplier) {
+
+        alert(
+            "❌ Supplier পাওয়া যায়নি।"
+        );
+
+        return;
+    }
+
+    const supplierName =
+        supplier.company ||
+        supplier.name ||
+        "এই Supplier";
+
+    if (
+        !confirm(
+            `আপনি কি "${supplierName}" Supplier-কে মুছে ফেলতে চান?`
+        )
+    ) {
+
+        return;
+    }
+
+    suppliers.splice(
+        index,
+        1
+    );
+
+    // যদি edit করা Supplier মুছে ফেলা হয়
+
+    if (editIndex === index) {
+
+        editIndex = -1;
+
+        if (supplierForm) {
+            supplierForm.reset();
+        }
+
+        const due =
+            document.getElementById(
+                "supplierDue"
+            );
+
+        if (due) {
+            due.value = 0;
+        }
+
+    } else if (editIndex > index) {
+
+        editIndex--;
+
+    }
+
+    saveSuppliers();
+
+    loadSuppliers();
+
+    alert(
+        "✅ Supplier মুছে ফেলা হয়েছে"
+    );
+
+}
+
+// ======================================
+// Live Search
+// ======================================
+
+if (searchSupplier) {
+
+    searchSupplier.addEventListener(
+        "input",
+        function () {
+
+            loadSuppliers(
+                this.value
+            );
+
+        }
+    );
+
+}
+
+// ======================================
+// Reset Button
+// ======================================
+
+if (supplierForm) {
+
+    supplierForm.addEventListener(
+        "reset",
+        function () {
+
+            editIndex = -1;
+
+            setTimeout(
+                function () {
+
+                    const due =
+                        document.getElementById(
+                            "supplierDue"
+                        );
+
+                    if (due) {
+                        due.value = 0;
+                    }
+
+                },
+                0
+            );
+
+        }
+    );
+
+}
+
+// ======================================
+// Logout
+// ======================================
+
+const logoutBtn =
+    document.getElementById(
+        "logoutBtn"
+    );
+
+if (logoutBtn) {
+
+    logoutBtn.addEventListener(
+        "click",
+        function (e) {
+
+            e.preventDefault();
+
+            localStorage.removeItem(
+                "isLoggedIn"
+            );
+
+            window.location.href =
+                "login.html";
+
+        }
+    );
+
+}
+
+// ======================================
+// Initialize
+// ======================================
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        loadSuppliers();
+
+    }
+);
+
+// ======================================
+// Make Functions Available Globally
+// ======================================
+
+window.editSupplier =
+    editSupplier;
+
+window.deleteSupplier =
+    deleteSupplier;
+
+window.loadSuppliers =
+    loadSuppliers;
+
+window.saveSuppliers =
+    saveSuppliers;
